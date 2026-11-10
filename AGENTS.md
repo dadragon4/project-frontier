@@ -81,7 +81,7 @@ Studio must be open on the place with `rojo serve` running. Then, from the proje
 python3 tools/studio.py test
 ```
 
-This starts a play session, runs the scripted movement checks (`src/client/Dev/MovementTests.luau`), prints one PASS/FAIL line per check plus any console errors, and stops the session (about 30 seconds). Run it after every movement change, and add a check there for each new ability instead of testing by hand with simulated keys.
+On Windows, use `python` instead of `python3`. This starts a play session, runs the scripted movement checks (`src/client/Dev/MovementTests.luau`), prints one PASS/FAIL line per check plus any console errors, and stops the session (about 30 seconds). Run it after every movement change, and add a check there for each new ability instead of testing by hand with simulated keys.
 
 `python3 tools/studio.py` with no arguments lists the other commands (console output, running Luau in Studio, calling any Studio MCP tool).
 

@@ -9,25 +9,53 @@ Studio must be open on the place, with `rojo serve` running and connected.
   python3 tools/studio.py play | stop          start or stop a play session
   python3 tools/studio.py list                 list the MCP tools and their arguments
   python3 tools/studio.py call <tool> '<json>' call any MCP tool
+
+On Windows, type `python` instead of `python3`.
 """
+import glob
 import json
-import select
+import os
+import queue
 import subprocess
 import sys
+import threading
 import time
 
-BIN = "/Applications/RobloxStudio.app/Contents/MacOS/StudioMCP"
 NOISE = ("Assistant plugin version",)
+
+
+def find_studio_mcp():
+    """Where Roblox Studio keeps its MCP server program on this computer."""
+    if sys.platform == "win32":
+        # Studio installs each update into a new Versions\version-<hash> folder,
+        # so take the newest StudioMCP.exe instead of hard-coding one folder.
+        pattern = os.path.join(os.environ.get("LOCALAPPDATA", ""), "Roblox", "Versions", "*", "StudioMCP.exe")
+        found = sorted(glob.glob(pattern), key=os.path.getmtime)
+        if not found:
+            sys.exit("StudioMCP.exe not found under %LOCALAPPDATA%\\Roblox\\Versions. Is Roblox Studio installed?")
+        return found[-1]
+    return "/Applications/RobloxStudio.app/Contents/MacOS/StudioMCP"
 
 
 class Studio:
     def __init__(self):
-        self.p = subprocess.Popen([BIN], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+        self.p = subprocess.Popen([find_studio_mcp()], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                  stderr=subprocess.DEVNULL)
+        # A background thread reads Studio's replies into a queue, so request() can
+        # wait with a timeout. (select() would do this on a Mac, but on Windows it
+        # only works on network sockets, not on a program's output pipe.)
+        self.lines = queue.Queue()
+        threading.Thread(target=self._read_lines, daemon=True).start()
         self.next_id = 0
         if self.request("initialize", {"protocolVersion": "2024-11-05", "capabilities": {},
                                        "clientInfo": {"name": "studio.py", "version": "1"}}, 15) is None:
             sys.exit("Studio MCP did not answer. Is Roblox Studio open?")
         self.send({"jsonrpc": "2.0", "method": "notifications/initialized"})
+
+    def _read_lines(self):
+        for line in self.p.stdout:
+            self.lines.put(line)
+        self.lines.put(b"")  # Studio closed its output: tell request() to stop waiting.
 
     def send(self, message):
         self.p.stdin.write((json.dumps(message) + "\n").encode())
@@ -38,16 +66,18 @@ class Studio:
         self.send({"jsonrpc": "2.0", "id": self.next_id, "method": method, "params": params or {}})
         end = time.time() + timeout
         while time.time() < end:
-            if select.select([self.p.stdout], [], [], 0.5)[0]:
-                line = self.p.stdout.readline()
-                if not line:
-                    break
-                try:
-                    message = json.loads(line)
-                except ValueError:
-                    continue
-                if message.get("id") == self.next_id:
-                    return message
+            try:
+                line = self.lines.get(timeout=0.5)
+            except queue.Empty:
+                continue
+            if not line:
+                break
+            try:
+                message = json.loads(line)
+            except ValueError:
+                continue
+            if message.get("id") == self.next_id:
+                return message
         return None
 
     def call(self, tool, args=None, timeout=60):

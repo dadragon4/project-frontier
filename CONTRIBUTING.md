@@ -11,6 +11,7 @@ Two people (each with their own AI agent) work on this game. The rules below kee
 
 1. Clone the repository.
 2. Install Rojo 7.7.1 (`brew install rojo` on a Mac) and its Studio plugin (`rojo plugin install`).
+   On Windows: unzip `rojo-7.7.1-windows-x86_64.zip` from the Rojo GitHub release into a folder on your PATH. If `rojo plugin install` says it cannot find Roblox, copy `Rojo.rbxm` from the same release to `%LOCALAPPDATA%\Roblox\Plugins\RojoManagedPlugin.rbxm`. Install Python 3 too (`winget install Python.Python.3.12`) and type `python` wherever these docs say `python3`.
 3. In VS Code, install the Luau language server and Rojo extensions.
 4. Turn on the guard that stops accidental pushes to `main`:
 
