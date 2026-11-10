@@ -31,12 +31,16 @@ Movement is pillar #1 and the first system to prototype. Status labels are defin
 This supersedes the concept doc's "vaulting should require deliberate player input" as a hard rule. "Clambering" means vaulting and mantling together.
 
 - Players choose in settings whether clambering is **automatic** or **manual**. Players should have options.
-- **Manual** uses a dedicated key, and is rewarded with a **stamina boost**.
+- **Manual** uses a dedicated key, and is rewarded with a **stamina boost**. The key is **Space** for vault, mantle and ledge grab (user decision 2026-11-10).
 - **Gamepad and touch** use auto-clambering.
 - The original intent still stands for manual players: obstacles matter, and misreading one costs time.
 
 - The stamina boost is a **small amount of stamina given back**.
 - Keyboard and mouse default to **automatic**.
+
+As built: **automatic** — moving into an obstacle vaults, mantles or grabs it (on the ground or in the air); **manual** — the same only happens while Space is held or was pressed within the last 0.25 s. The setting is in the settings panel (`P`). The stamina refund is not built (no stamina yet).
+
+**Known limitation:** Roblox's built-in character automatically steps over anything lower than about 2 studs. So in manual mode, obstacles under roughly 2 studs cannot block anyone; the 1.5-stud test rail was simply walked over. Options: raise the lowest vault height to about 2 studs (so low obstacles count as steps), or accept it. **Not decided.**
 
 **[Open] [Q4]** Whether gamepad and touch players may opt into manual; what vaulting "under" an obstacle means.
 
@@ -44,6 +48,8 @@ This supersedes the concept doc's "vaulting should require deliberate player inp
 
 - Traverses obstacles, in automatic or manual mode as above.
 - The master prompt speaks of vaulting "over or under" an obstacle.
+
+**[Proposed]** as built: obstacles 1.2 to 3 studs tall and at most 4 studs deep, with floor behind them, are vaulted in one smooth arc, keeping 95% of your speed (at least 10). Deeper low obstacles are mantled onto instead. Sliding into an obstacle vaults it too, which covers the "slide into a vault" transition.
 
 ### Mantle — Essential [Established]
 
@@ -68,9 +74,7 @@ Pressing `R` makes the player do a quick turn: the view swings round 180 degrees
 
 ### Mantle heights [Established — user decision 2026-11-10]
 
-The user asked for mantling onto "a block that is at least 5 blocks high". **Agent's reading, to confirm:** mantling must handle blocks of 5 studs and more. As built, it works on blocks 3 to 6.5 studs tall; lower blocks are simply jumped onto (vaulting comes later), taller ledges are out of reach (ledge grab comes later). Both limits are in the config.
-
-As built it is **automatic** (keyboard default per the earlier decision): jump at the block while pushing toward it. The manual mode with its own key and stamina refund is not built yet; the key has not been chosen.
+The user asked for mantling onto "a block that is at least 5 blocks high". **Agent's reading, to confirm:** mantling must handle blocks of 5 studs and more. As built, it works on blocks up to 6.5 studs tall (from the ground or from a jump). Low thick blocks that cannot be vaulted are mantled too (from 1.2 studs). Taller ledges are grabbed instead (see Ledge grab). The limits are in the config.
 
 ### Crouch — Essential [Established]
 
@@ -80,13 +84,31 @@ Responsive and intuitive. For stealth, tactical positioning, getting under obsta
 
 An alternative route where conventional ones (climbing, ladders) do not exist. Complements the rest of the system.
 
+**[Proposed]** as built: jump alongside a wall while moving along it at 12 studs/s or more, and you run along it for up to 1.3 s, with a small upward kick at the start that curves down. Space pushes off into a **wall jump** (keeping 80% of the speed); crouch drops off. The run also ends when the wall ends, you reach the floor, or speed runs out. You cannot run the same wall twice before landing. Wall-run is automatic in both clambering modes (not decided otherwise).
+
 ### Ledge grab — High [Established]
 
 Integrates with mantling and wall-running; supports natural movement between surfaces.
 
+**[Proposed]** as built: a ledge too tall to mantle (above 6.5 studs, up to 10, and within arm's reach) is grabbed while airborne. While hanging: **Space** pulls up, **crouch** lets go, **left/right** shimmies along the ledge as long as it continues. **[Open]** whether hanging should be time-limited (or drain stamina once stamina exists); for now it is unlimited.
+
 ### Slide transitions — Medium [Established]
 
 Skilled players chain a slide into a vault or another action. Successful chains enable longer gaps and advanced routes.
+
+As built: slide into an obstacle → vault; slide → jump (slide-hop, below); slide → double-tap crouch → roll.
+
+### Slide-hop [Established — user decision 2026-11-10]
+
+Jumping out of a slide keeps a little of the speed, and then acceleration picks back up.
+
+**[Proposed]** as built: +3 studs/s on the jump (never above 26), at most once per second. While sprinting, speed above sprint speed eases off gently (10 studs/s per second) instead of being cut instantly, so the extra speed lasts about half a second after landing.
+
+### Camera feel and settings [Established — user decision 2026-11-10]
+
+Movement should feel physical, with a settings option to reduce camera motion.
+
+**[Proposed]** as built: head bob scaled with speed; a landing dip that grows with fall height (none after a roll); a slight lean when strafing; a 10° tilt away from the wall while wall-running; small downward looks during mantles and vaults. **Reduce camera motion** removes the bob, lean, tilts and the roll/mantle/vault camera movements, and shrinks the landing dip (35%) and speed field-of-view change (50%). Settings open with `P` and are **not saved** between sessions yet (that belongs to Phase 5).
 
 ## Stamina and momentum [Established]
 
@@ -167,15 +189,20 @@ See `TECHNICAL_ARCHITECTURE.md` → "Movement architecture".
 | Slide (momentum, slope, steering) | **Tested in Studio** on flat ground: from sprint it starts at 24 and reaches crouch in about 0.65 s (was about 1.5 s). Slope and steering **not yet tested** |
 | Roll | **Tested in Studio**: no roll from a normal flat-ground jump (slides instead); air roll after jumping off the 8 stud ledge; ground roll from a crouch double-tap while standing and while sprinting; two slow taps (0.6 s apart) correctly do not roll. Camera turn-over returns level. **Not yet looked at by eye** |
 | Quick turn (`R`) | **Tested in Studio**: view turns 180° in about 0.2 s and stays turned, standing and while sprinting |
-| Mantle (automatic) | **Tested in Studio**: 4, 5 and 6 stud blocks mantled from a running jump; 8 stud ledge correctly not mantled. Manual mode **not built** |
+| Vault | **Tested in Studio**: automatic vault over the 2 stud box (sprinting, speed kept at 19) and both thin rails (walking); manual mode: blocked at the 2.5 stud rail without Space, vaulted with Space. 1.5 stud rail is walked over without Space (see known limitation) |
+| Ledge grab | **Tested in Studio**: grab on the 8 stud wall from a jump, hang 0.9 from the wall and 2.4 below the top, shimmy both ways, Space pulls up onto the top, crouch drops without re-grabbing |
+| Wall-run and wall jump | **Tested in Studio**: run of 0.85 s / 16 studs before the downward curve was softened (not re-measured since); camera tilts ~10° away from the wall; Space gives a wall jump (rose ~3.5 studs, moved away from the wall) |
+| Slide-hop | **Tested in Studio**: speed 21 → 24 on the jump out of a slide, eased back to 20 over ~0.5 s after landing |
+| Settings panel | **Tested in Studio**: opens and closes with `P`, buttons clickable; Manual mode and Reduced motion both take effect (no slide tilt, FOV 86 instead of 92) |
+| Camera feel (bob, dip, lean) | Running without errors. **Not looked at by eye** |
+| Mantle | **Tested in Studio**: 4, 5 and 6 stud blocks mantled from a running jump; 4 stud block mantled by just walking into it (automatic mode); pull-up from a ledge hang |
 | Air momentum | Jump and landing tested from standstill; momentum in the air **not yet tested** |
 | Input buffering and coyote jump | Buffered jump **tested in Studio** (pressed in mid-air, fired on landing). Slide-on-landing and coyote jump **not yet tested** |
-| Vault, ledge grab | Not started (M1.2) |
-| Wall-run, transitions, stamina, weight | Not started (M1.3) |
+| Stamina, weight | Not started (M1.3) |
 
 Tests on 2026-11-10 were run by the agent through Studio with simulated key presses, reading the debug readout. Nobody has yet judged how it feels. All numbers in `src/shared/Config/MovementConfig.luau` are untuned first guesses.
 
-Keys: `W A S D` move, `Left Shift` sprint (hold), `C`, `Left Ctrl` or (on a Mac) `Left Command` crouch (hold; press while sprinting to slide), `Space` jump.
+Keys: `W A S D` move, `Left Shift` sprint (hold), `C`, `Left Ctrl` or (on a Mac) `Left Command` crouch (hold; press while sprinting to slide), `Space` jump / manual clamber / pull up / wall jump, `R` quick turn, `P` settings.
 
 Jump height is 3.25 studs (lowered from 6, then 4.5, at the user's request on 2026-11-10 for a more realistic human jump; Roblox's default is 7.2).
 
@@ -183,7 +210,7 @@ Roll: tap crouch while in the air after a drop of 6 studs or more, or double-tap
 
 Quick turn: `R`.
 
-Mantle: jump at a block between 3 and 6.5 studs tall while pushing toward it.
+Vault / mantle / ledge grab: move into the obstacle (automatic), or press Space at it (manual). Wall-run: jump beside a wall while running along it.
 
 **Known risk with Command as crouch:** macOS treats Command plus a letter as a shortcut. Crouch-walking means holding Command with `W`, `A`, `S` or `D`, and `Command+W` / `Command+Q` normally close the window or quit the app. macOS also often fails to report other keys being released while Command is held, which can leave a movement key "stuck". To be checked in Studio and in the Roblox player before relying on it.
 

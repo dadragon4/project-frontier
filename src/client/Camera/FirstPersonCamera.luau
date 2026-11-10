@@ -1,6 +1,16 @@
 -- First-person presentation: locks the view to first person, keeps the
--- player's own body visible, and adds speed-based field of view, a slight
--- tilt while sliding, and the camera turn-over during a roll.
+-- player's own body visible, and adds the camera movements that make motion
+-- feel physical:
+--   - field of view widens with speed;
+--   - head bob while running, scaled by speed;
+--   - a dip on landing, deeper for bigger falls;
+--   - a slight lean when strafing, a tilt while sliding, and a stronger tilt
+--     away from the wall while wall-running;
+--   - extra pitch requested by movement states (roll turn-over, mantle and
+--     vault dips);
+--   - the quick turn.
+-- "Reduce camera motion" (Settings) turns off the bob, lean, tilts and
+-- pitch effects, and shrinks the landing dip and FOV change.
 --
 -- Roblox's own camera script still does the mouse-look. We run just after
 -- it each frame and add our effects on top.
@@ -17,9 +27,12 @@ local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 
 local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"):WaitForChild("MovementConfig"))
+local Settings = require(script.Parent.Parent:WaitForChild("Settings"))
 
 local PRE_STEP_NAME = "FrontierFirstPersonCameraPre"
 local RENDER_STEP_NAME = "FrontierFirstPersonCamera"
+
+local BOB_STATES = { Walk = true, Sprint = true, Crouch = true }
 
 local FirstPersonCamera = {}
 FirstPersonCamera.__index = FirstPersonCamera
@@ -28,8 +41,13 @@ function FirstPersonCamera.new(controller)
 	local self = setmetatable({}, FirstPersonCamera)
 	self.controller = controller
 	self.character = controller.character
-	self.roll = 0
 	self.applied = CFrame.identity -- the effect we added last frame
+	self.tilt = 0
+	self.bobPhase = 0
+	self.bobAmount = 0
+	self.lastLandingSeen = controller.landedAt
+	self.dipDepth = 0
+	self.dipStartedAt = -math.huge
 
 	local player = Players.LocalPlayer
 	-- In locked first person the mouse is always captured, so Roblox's
@@ -74,13 +92,23 @@ function FirstPersonCamera:_showBody()
 	end
 end
 
+-- Frame-rate independent smoothing factor.
+local function blend(rate: number, dt: number): number
+	return 1 - math.exp(-rate * dt)
+end
+
 function FirstPersonCamera:_update(dt: number)
 	local camera = Workspace.CurrentCamera
 	if not camera then
 		return
 	end
 	local cameraConfig = Config.Camera
+	local feel = Config.CameraFeel
 	local controller = self.controller
+	local reduced = Settings.get("ReduceCameraMotion")
+	local motion = if reduced then 0 else 1
+	local state = controller.stateName
+	local speed = controller:getSpeed()
 
 	self:_showBody()
 
@@ -96,24 +124,61 @@ function FirstPersonCamera:_update(dt: number)
 	end
 
 	-- Field of view widens with speed.
-	local speed = controller:getSpeed()
+	local fovScale = if reduced then feel.ReducedFovScale else 1
 	local sprintRange = math.max(Config.SprintSpeed - Config.WalkSpeed, 0.01)
 	local sprintAmount = math.clamp((speed - Config.WalkSpeed) / sprintRange, 0, 1)
-	local targetFov = cameraConfig.BaseFov + cameraConfig.SprintFovAdd * sprintAmount
-	if controller.stateName == "Slide" then
-		targetFov = cameraConfig.BaseFov + cameraConfig.SlideFovAdd
+	local fovAdd = cameraConfig.SprintFovAdd * sprintAmount
+	if state == "Slide" or state == "WallRun" then
+		fovAdd = cameraConfig.SlideFovAdd
 	end
-	-- Frame-rate independent smoothing.
-	local fovBlend = 1 - math.exp(-cameraConfig.FovRate * dt)
-	camera.FieldOfView += (targetFov - camera.FieldOfView) * fovBlend
+	local targetFov = cameraConfig.BaseFov + fovAdd * fovScale
+	camera.FieldOfView += (targetFov - camera.FieldOfView) * blend(cameraConfig.FovRate, dt)
 
-	-- Tilt while sliding.
-	local targetRoll = if controller.stateName == "Slide" then math.rad(cameraConfig.SlideRoll) else 0
-	local rollBlend = 1 - math.exp(-cameraConfig.RollRate * dt)
-	self.roll += (targetRoll - self.roll) * rollBlend
+	-- Tilt: slide tilt, strafe lean, wall-run tilt.
+	local right = camera.CFrame.RightVector
+	local flatRight = Vector3.new(right.X, 0, right.Z)
+	local targetTilt = 0
+	if state == "Slide" then
+		targetTilt += math.rad(cameraConfig.SlideRoll)
+	end
+	if BOB_STATES[state] and controller.grounded then
+		local sideways = controller.velocity:Dot(flatRight) / Config.SprintSpeed
+		targetTilt -= math.clamp(sideways, -1, 1) * math.rad(feel.StrafeLean)
+	end
+	if controller.wallNormal then
+		-- Lean the head away from the wall.
+		local wallOnLeft = controller.wallNormal:Dot(flatRight) > 0
+		targetTilt += (if wallOnLeft then -1 else 1) * math.rad(feel.WallRunTilt)
+	end
+	self.tilt += (targetTilt * motion - self.tilt) * blend(cameraConfig.RollRate, dt)
 
-	-- Combine this frame's effects: roll turn-over (pitch) and slide tilt.
-	local effect = CFrame.Angles(controller.cameraPitch, 0, 0) * CFrame.Angles(0, 0, self.roll)
+	-- Head bob, driven by distance travelled so it matches footsteps.
+	local targetBob = 0
+	if BOB_STATES[state] and controller.grounded and speed > 1 then
+		self.bobPhase += speed * dt * feel.BobFrequency
+		targetBob = feel.BobAmount * math.clamp(speed / Config.SprintSpeed, 0, 1)
+	end
+	self.bobAmount += (targetBob * motion - self.bobAmount) * blend(10, dt)
+	local bobY = math.sin(self.bobPhase * 2) * self.bobAmount
+	local bobX = math.sin(self.bobPhase) * self.bobAmount * 0.5
+
+	-- Landing dip (not after a roll, which has its own camera movement).
+	if controller.landedAt ~= self.lastLandingSeen then
+		self.lastLandingSeen = controller.landedAt
+		local fall = controller.lastFallHeight
+		if fall > feel.DipMinFall and state ~= "Roll" then
+			local scale = if reduced then feel.ReducedDipScale else 1
+			self.dipDepth = math.min((fall - feel.DipMinFall) * feel.DipPerStud, feel.DipMax) * scale
+			self.dipStartedAt = os.clock()
+		end
+	end
+	local dipProgress = (os.clock() - self.dipStartedAt) / feel.DipDuration
+	local dip = if dipProgress < 1 then self.dipDepth * math.sin(math.pi * dipProgress) else 0
+
+	-- Combine this frame's effects.
+	local effect = CFrame.new(bobX, bobY - dip, 0)
+		* CFrame.Angles(controller.cameraPitch * motion, 0, 0)
+		* CFrame.Angles(0, 0, self.tilt)
 	camera.CFrame *= effect
 	self.applied = effect
 end

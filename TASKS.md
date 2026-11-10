@@ -50,16 +50,18 @@ Split into four slices so there is something playable and testable after each. "
 - [x] On-screen debug readout (state, speed).
 
 ### M1.2 Obstacle traversal — *needs Q4*
-- [x] Obstacle and ledge detection (for mantle).
-- [ ] Manual vault.
-- [x] Mantle — automatic mode, 3 to 6.5 studs. Manual mode and its key still to do.
-- [ ] Ledge grab.
+- [x] Obstacle and ledge detection.
+- [x] Vault — automatic and manual (Space).
+- [x] Mantle — automatic and manual (Space), up to 6.5 studs.
+- [x] Ledge grab, with pull-up, drop and shimmy.
+- [ ] Decide: raise the lowest vault height to ~2 studs? (Roblox's character steps over anything lower.)
 - [x] Roll — air roll (6 stud minimum drop) and ground roll (crouch double-tap), at the user's request.
 - [x] Quick turn on `R`, at the user's request.
 
 ### M1.3 Advanced traversal and resources — *needs Q5, Q6/C8*
-- [ ] Wall-run.
-- [ ] Slide transitions (slide → vault and others).
+- [x] Wall-run and wall jump.
+- [x] Slide transitions (slide → vault, slide-hop, slide → roll).
+- [x] Camera feel touches and the reduce-camera-motion setting (settings panel on `P`, not saved yet).
 - [ ] Stamina with momentum discount.
 - [ ] Weight modifier, driven by a hand-set test value.
 

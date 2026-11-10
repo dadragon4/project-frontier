@@ -6,11 +6,13 @@
 -- has a known, written-down size, and so it lives in version control.
 --
 -- Facing the course from the spawn point (looking toward -Z):
---   far left   ledges for mantling            (M1.2)
+--   far left   ledges: 6 mantle, 8 and 10 ledge grab
 --   left       crouch tunnel, then slide bar
 --   centre     sprint lane with a marker every 20 studs
 --   right      15 degree ramp for slope slides
---   far right  vault boxes                    (M1.2)
+--   far right  vault boxes
+--   far end    vault rails (centre-right), wall-run walls (left),
+--              ledge-grab / shimmy wall (right)
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -148,6 +150,24 @@ for index, height in { 6, 8, 10 } do
 	)
 	addLabel(ledge, "Ledge: " .. height .. " high")
 end
+
+-- Vault rails (centre-right, far end): thin, 12 wide.
+for index, height in { 1.5, 2.5 } do
+	local rail = makeBox("VaultRail" .. height, Vector3.new(12, height, 0.8), Vector3.new(20, 0, -60 - (index - 1) * 25), LOW_COLOR)
+	addLabel(rail, "Vault rail: " .. height .. " high")
+end
+
+-- Wall-run walls (left, far end): two parallel walls, 14 high, 60 long,
+-- 12 studs apart. Sprint along one wall and jump next to it.
+for _, x in { -60, -46 } do
+	local wall = makeBox("WallRunWall", Vector3.new(2, 14, 60), Vector3.new(x, 0, -100), OBSTACLE_COLOR)
+	addLabel(wall, "Wall-run wall")
+end
+
+-- Shimmy ledge (right, far end): 8 high, 40 wide. Jump and grab the top,
+-- then move left and right along it.
+local shimmy = makeBox("ShimmyLedge", Vector3.new(40, 8, 4), Vector3.new(60, 0, -120), OBSTACLE_COLOR)
+addLabel(shimmy, "Ledge grab / shimmy: 8 high")
 
 -- Spawn at the start of the sprint lane, facing down it.
 local spawn = Instance.new("SpawnLocation")

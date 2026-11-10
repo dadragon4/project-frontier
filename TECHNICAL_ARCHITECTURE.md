@@ -14,20 +14,28 @@ Update, same day: a place file `Project Frontier.rbxl` now sits in the folder (n
 
 **Decided by the user, 2026-11-10:** the place is shared with the second developer through Roblox; the code is shared through the GitHub repo. The `.rbxl` file is therefore kept out of git.
 
-### What exists in code now (written, not yet run)
+### What exists in code now
 
 ```text
 default.project.json                 Rojo mapping (below)
 src/shared/Config/MovementConfig     every movement tuning number
 src/shared/Config/DevConfig          test-course and debug switches
 src/client/Main.client               starts everything when the character spawns
-src/client/Input                     actions ("Sprint", "Crouch") mapped to keys
-src/client/Camera/FirstPersonCamera  first-person lock, visible body, FOV and tilt
-src/client/Movement/MovementController   owns speed/direction, runs the current state
-src/client/Movement/States/*         Walk, Sprint, Crouch, Slide, Air
+src/client/Input                     actions ("Sprint", "Crouch", ...) mapped to keys
+src/client/Settings                  the player's own preferences (not saved yet)
+src/client/UI/SettingsPanel          settings window on P
+src/client/Camera/FirstPersonCamera  first-person view and all camera feel effects
+src/client/Movement/MovementController   owns speed/direction, obstacle detection, runs the current state
+src/client/Movement/States/*         Walk, Sprint, Crouch, Slide, Air, Roll, Mantle, Vault, LedgeHang, WallRun
 src/client/Movement/DebugReadout     on-screen state and speed
 src/server/TestCourse.server         builds the greybox course at server start
+src/server/CharacterCollision.server stops players' arms and legs colliding with the world
 ```
+
+Two Roblox behaviours found in testing (2026-11-10) that the movement code depends on:
+
+- In the Humanoid's "Physics" state (used by mantle, vault, ledge hang and wall-run) every body part becomes solid, and setting `CanCollide` from a script does not stick. The fix is a collision group (`PlayerLimbs`, set up by the server) that stops limbs colliding with the world.
+- In that state gravity still acts between our frames, so a held body sags and a wall-run sinks. While such a state is active, a `VectorForce` equal to the character's weight cancels gravity.
 
 Rojo maps these into three folders it owns and touches nothing else in the place: `ReplicatedStorage.Shared`, `ServerScriptService.Server`, `StarterPlayer.StarterPlayerScripts.Client`.
 

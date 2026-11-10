@@ -2,6 +2,7 @@
 
 local Walk = {
 	allowsGroundRoll = true, -- double-tapping crouch here starts a roll
+	allowsClamber = true, -- vault / mantle can start from here
 }
 
 function Walk.enter(ctx)

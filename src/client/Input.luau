@@ -29,9 +29,11 @@ local BINDINGS: { [string]: { Enum.KeyCode } } = {
 		Enum.KeyCode.LeftMeta,
 	},
 	-- Roblox's control script still performs the ordinary jump. We listen to
-	-- the same key only so that early presses can be buffered.
+	-- the same key so that early presses can be buffered, and because Space
+	-- is also the manual vault / mantle / ledge-grab key and the wall-jump key.
 	Jump = { Enum.KeyCode.Space },
 	QuickTurn = { Enum.KeyCode.R },
+	Settings = { Enum.KeyCode.P },
 }
 
 local Input = {}
@@ -49,6 +51,11 @@ local rawPrevPress: { [string]: number } = {}
 local doubleTapUsed: { [string]: number } = {}
 local started = false
 
+local pressedEvent = Instance.new("BindableEvent")
+-- Fires (actionName) the moment an action goes down. For things like
+-- opening a menu, which react to a press rather than check every frame.
+Input.Pressed = pressedEvent.Event
+
 local function press(action: string)
 	local count = (heldCount[action] or 0) + 1
 	heldCount[action] = count
@@ -57,6 +64,7 @@ local function press(action: string)
 		lastPressTime[action] = now
 		rawPrevPress[action] = rawLastPress[action]
 		rawLastPress[action] = now
+		pressedEvent:Fire(action)
 	end
 end
 
@@ -137,6 +145,13 @@ function Input.doubleTapped(action: string, window: number, recent: number): boo
 		return false
 	end
 	return last - prev <= window and os.clock() - last <= recent
+end
+
+-- Was the action pressed within the last `window` seconds, whether or not
+-- that press has been consumed?
+function Input.recentlyPressed(action: string, window: number): boolean
+	local last = rawLastPress[action]
+	return last ~= nil and os.clock() - last <= window
 end
 
 function Input.consumeDoubleTap(action: string)

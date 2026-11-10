@@ -2,6 +2,7 @@
 
 local Sprint = {
 	allowsGroundRoll = true, -- double-tapping crouch here starts a roll
+	allowsClamber = true, -- vault / mantle can start from here
 }
 
 function Sprint.enter(ctx)
@@ -29,7 +30,8 @@ function Sprint.update(ctx, dt: number): string?
 	-- Below walk speed (for example straight after turning round) pick up
 	-- speed at the normal rate; above it, build toward sprint speed slowly.
 	local accel = if ctx:getSpeed() < config.WalkSpeed then config.GroundAccel else config.SprintAccel
-	ctx:accelerate(config.SprintSpeed, accel, config.GroundDecel, dt)
+	-- Extra speed from a slide-hop or vault bleeds away gently (OverSpeedDecel).
+	ctx:accelerate(config.SprintSpeed, accel, config.GroundDecel, dt, config.OverSpeedDecel)
 	return nil
 end
 

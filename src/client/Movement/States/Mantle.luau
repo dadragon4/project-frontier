@@ -1,4 +1,5 @@
--- Mantle: pulling up onto a ledge found by MovementController:findLedge().
+-- Mantle: pulling up onto a ledge found by MovementController:findObstacle(),
+-- or from a LedgeHang.
 --
 -- For the duration, the Humanoid is put into its "Physics" state, which
 -- stops it walking or applying gravity corrections of its own, and this
@@ -19,8 +20,8 @@ end
 
 function Mantle.enter(ctx)
 	local mantle = ctx.config.Mantle
-	local ledge = ctx.pendingLedge
-	ctx.pendingLedge = nil
+	local ledge = ctx.pendingObstacle
+	ctx.pendingObstacle = nil
 	ctx.crouched = false
 
 	local root = ctx.root
@@ -46,7 +47,8 @@ end
 function Mantle.exit(ctx)
 	local m = ctx.mantle
 	ctx.mantle = nil
-	ctx.lastMantleEnd = os.clock()
+	ctx.lastClamberEnd = os.clock()
+	ctx.cameraPitch = 0
 	ctx.velocity = m.exitVelocity
 	-- Treat the character as freshly on the ground, not mid-jump.
 	ctx.airTime = 0
@@ -71,6 +73,8 @@ function Mantle.update(ctx, _dt: number): string?
 	local root = ctx.root
 	root.CFrame = CFrame.new(position) * m.rotation
 	root.AssemblyLinearVelocity = Vector3.zero
+	-- A small downward look while pulling up.
+	ctx.cameraPitch = -math.rad(mantle.CameraDip) * math.sin(math.pi * math.clamp(t / m.riseTime, 0, 1))
 
 	if t >= m.riseTime + mantle.ForwardTime then
 		return if ctx:wantsSprint() then "Sprint" else "Walk"

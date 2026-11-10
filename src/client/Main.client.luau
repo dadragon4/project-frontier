@@ -1,5 +1,6 @@
--- Client entry point. Starts input once, then builds the movement
--- controller, camera and debug readout each time the character spawns.
+-- Client entry point. Starts input and the settings panel once, then builds
+-- the movement controller, camera and debug readout each time the character
+-- spawns.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -10,10 +11,12 @@ local Input = require(script.Parent:WaitForChild("Input"))
 local MovementController = require(script.Parent:WaitForChild("Movement"):WaitForChild("MovementController"))
 local DebugReadout = require(script.Parent:WaitForChild("Movement"):WaitForChild("DebugReadout"))
 local FirstPersonCamera = require(script.Parent:WaitForChild("Camera"):WaitForChild("FirstPersonCamera"))
+local SettingsPanel = require(script.Parent:WaitForChild("UI"):WaitForChild("SettingsPanel"))
 
 local player = Players.LocalPlayer
 
 Input.start()
+SettingsPanel.start(Input)
 
 local active: { any } = {}
 
