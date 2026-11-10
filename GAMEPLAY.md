@@ -1,6 +1,6 @@
 # GAMEPLAY.md — PROJECT FRONTIER
 
-Status labels are defined in `AGENTS.md`. Register entries (`Cn`, `Qn`) are in `TASKS.md`. Movement has its own file (`MOVEMENT_SPEC.md`), as does the deployment loop (`EXTRACTION_SPEC.md`).
+Status labels are defined in `AGENTS.md`. Register entries (`Cn`, `Qn`) are in `DECISIONS.md`. Movement has its own file (`MOVEMENT_SPEC.md`), as does the deployment loop (`EXTRACTION_SPEC.md`).
 
 ## Core loop [Established]
 

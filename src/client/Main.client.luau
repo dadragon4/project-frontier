@@ -1,6 +1,6 @@
 -- Client entry point. Starts input and the settings panel once, then builds
 -- the movement controller, camera and debug readout each time the character
--- spawns.
+-- spawns. In development it also starts the scripted movement tests.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -12,6 +12,7 @@ local MovementController = require(script.Parent:WaitForChild("Movement"):WaitFo
 local DebugReadout = require(script.Parent:WaitForChild("Movement"):WaitForChild("DebugReadout"))
 local FirstPersonCamera = require(script.Parent:WaitForChild("Camera"):WaitForChild("FirstPersonCamera"))
 local SettingsPanel = require(script.Parent:WaitForChild("UI"):WaitForChild("SettingsPanel"))
+local MovementTests = require(script.Parent:WaitForChild("Dev"):WaitForChild("MovementTests"))
 
 local player = Players.LocalPlayer
 
@@ -19,8 +20,10 @@ Input.start()
 SettingsPanel.start(Input)
 
 local active: { any } = {}
+local currentController = nil
 
 local function teardown()
+	currentController = nil
 	for _, object in active do
 		object:destroy()
 	end
@@ -31,6 +34,7 @@ local function onCharacterAdded(character: Model)
 	teardown()
 
 	local controller = MovementController.new(character, Input)
+	currentController = controller
 	table.insert(active, controller)
 	table.insert(active, FirstPersonCamera.new(controller))
 	if DevConfig.ShowDebugReadout then
@@ -38,6 +42,12 @@ local function onCharacterAdded(character: Model)
 	end
 
 	controller.humanoid.Died:Once(teardown)
+end
+
+if DevConfig.MovementTests then
+	MovementTests.start(Input, function()
+		return currentController
+	end)
 end
 
 player.CharacterAdded:Connect(onCharacterAdded)

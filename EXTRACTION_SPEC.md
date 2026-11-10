@@ -1,6 +1,6 @@
 # EXTRACTION_SPEC.md — PROJECT FRONTIER
 
-Status labels are defined in `AGENTS.md`. Register entries (`Cn`, `Qn`) are in `TASKS.md`. This system is built in Phase 4; nothing here is implemented.
+Status labels are defined in `AGENTS.md`. Register entries (`Cn`, `Qn`) are in `DECISIONS.md`. This system is built in Phase 4; nothing here is implemented.
 
 ## Deployment structure [Established]
 

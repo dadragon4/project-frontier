@@ -16,7 +16,7 @@ return {
 
 	-- How quickly speed changes on the ground
 	GroundAccel = 40, -- from standing still up to walk speed
-	SprintAccel = 14, -- from walk speed up to sprint speed
+	SprintAccel = 16, -- from walk speed up to sprint speed
 	GroundDecel = 50, -- slowing down when input stops or the target speed drops
 	-- While sprinting, how quickly extra speed above sprint speed (from a
 	-- slide-hop or a vault) bleeds away. Low = the extra speed lingers.
@@ -26,7 +26,7 @@ return {
 	-- the direction the player is now pushing (turning, or reversing). Higher
 	-- = sharper turns, lower = more "ice". This is what stops quick turns from
 	-- feeling slippery.
-	TurnFriction = 90,
+	TurnFriction = 80,
 
 	-- Sprint only engages while moving mostly forward. 1 = exactly forward,
 	-- 0 = sideways allowed.
@@ -56,7 +56,7 @@ return {
 	},
 
 	Slide = {
-		MinSpeed = 16, -- must be moving at least this fast to start a slide
+		MinSpeed = 14, -- must be moving at least this fast to start a slide
 		Boost = 4, -- speed added when a slide starts
 		BoostCooldown = 1.0, -- no boost if the previous slide ended more recently than this
 		MaxSpeed = 34,

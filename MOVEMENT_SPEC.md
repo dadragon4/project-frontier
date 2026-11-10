@@ -1,6 +1,6 @@
 # MOVEMENT_SPEC.md — PROJECT FRONTIER
 
-Movement is pillar #1 and the first system to prototype. Status labels are defined in `AGENTS.md`; register entries (`Cn`, `Qn`) are in `TASKS.md`.
+Movement is pillar #1 and the first system to prototype. Status labels are defined in `AGENTS.md`; register entries (`Cn`, `Qn`) are in `DECISIONS.md`.
 
 **No tuning numbers are established.** Every speed, distance, cost and threshold is to be found by playtesting; values will live in one configuration module so they can be changed without touching logic.
 
@@ -180,27 +180,23 @@ See `TECHNICAL_ARCHITECTURE.md` → "Movement architecture".
 
 ## Implementation status
 
-| Ability | Status (2026-11-10) |
-| :-- | :-- |
-| First-person camera with visible body | Runs without errors; first-person lock and FOV change confirmed. Body visibility **not yet looked at** |
-| Walk / sprint with acceleration | **Tested in Studio**: 12 and 20 studs/s reached (retuned 2026-11-10: slower speeds and acceleration) |
-| Turning (no "ice") | **Tested in Studio**: full reverse from sprint to walking the other way takes about 0.45 s (was about 1.6 s) |
-| Crouch (with headroom check) | **Tested in Studio**: lowers, slows (now 7), stays crouched under the tunnel roof, stands after it |
-| Slide (momentum, slope, steering) | **Tested in Studio** on flat ground: from sprint it starts at 24 and reaches crouch in about 0.65 s (was about 1.5 s). Slope and steering **not yet tested** |
-| Roll | **Tested in Studio**: no roll from a normal flat-ground jump (slides instead); air roll after jumping off the 8 stud ledge; ground roll from a crouch double-tap while standing and while sprinting; two slow taps (0.6 s apart) correctly do not roll. Camera turn-over returns level. **Not yet looked at by eye** |
-| Quick turn (`R`) | **Tested in Studio**: view turns 180° in about 0.2 s and stays turned, standing and while sprinting |
-| Vault | **Tested in Studio**: automatic vault over the 2 stud box (sprinting, speed kept at 19) and both thin rails (walking); manual mode: blocked at the 2.5 stud rail without Space, vaulted with Space. 1.5 stud rail is walked over without Space (see known limitation) |
-| Ledge grab | **Tested in Studio**: grab on the 8 stud wall from a jump, hang 0.9 from the wall and 2.4 below the top, shimmy both ways, Space pulls up onto the top, crouch drops without re-grabbing |
-| Wall-run and wall jump | **Tested in Studio**: run of 0.85 s / 16 studs before the downward curve was softened (not re-measured since); camera tilts ~10° away from the wall; Space gives a wall jump (rose ~3.5 studs, moved away from the wall) |
-| Slide-hop | **Tested in Studio**: speed 21 → 24 on the jump out of a slide, eased back to 20 over ~0.5 s after landing |
-| Settings panel | **Tested in Studio**: opens and closes with `P`, buttons clickable; Manual mode and Reduced motion both take effect (no slide tilt, FOV 86 instead of 92) |
-| Camera feel (bob, dip, lean) | Running without errors. **Not looked at by eye** |
-| Mantle | **Tested in Studio**: 4, 5 and 6 stud blocks mantled from a running jump; 4 stud block mantled by just walking into it (automatic mode); pull-up from a ledge hang |
-| Air momentum | Jump and landing tested from standstill; momentum in the air **not yet tested** |
-| Input buffering and coyote jump | Buffered jump **tested in Studio** (pressed in mid-air, fired on landing). Slide-on-landing and coyote jump **not yet tested** |
-| Stamina, weight | Not started (M1.3) |
+Checked automatically by `python3 tools/studio.py test` (18 checks, all passing on 2026-11-10; see `src/client/Dev/MovementTests.luau`):
 
-Tests on 2026-11-10 were run by the agent through Studio with simulated key presses, reading the debug readout. Nobody has yet judged how it feels. All numbers in `src/shared/Config/MovementConfig.luau` are untuned first guesses.
+| Area | What the script checks |
+| :-- | :-- |
+| Walk, sprint | Reaches walk and sprint speed in the right state |
+| Slide | Starts from a sprint with a boost; ends in a crouch |
+| Crouch | Speed and lowered body; stays crouched under the tunnel roof and stands once clear |
+| Jump | Height matches the config; a jump pressed just before landing fires on landing; coyote jump (on a slow frame rate the script widens the window, so the tuned 0.12 s itself is unverified) |
+| Roll | Air roll after an 8 stud fall; ground roll from a crouch double-tap |
+| Vault | Automatic vault over the 2 stud box while sprinting |
+| Mantle | Automatic mantle onto the 4 stud box |
+| Ledge grab | Grab on the 8 stud wall from a jump; Space pulls up onto the top |
+| Wall-run | Starts from a jump beside the wall; Space wall-jumps away from it |
+
+Checked once by hand through Studio with simulated keys (2026-11-10), not in the script: quick turn; turning without "ice" (full reverse in about 0.45 s); slide-hop (21 → 24, easing back over about 0.5 s); manual clamber mode; ledge shimmy and drop; mantles of 5 and 6 studs; the settings panel and reduced camera motion; that a normal flat-ground jump does not roll.
+
+**Not tested:** slide on slopes and slide steering; slide on landing; momentum in the air; the Command key on a Mac; anything with two players. **Not looked at by eye by anyone:** the visible body, the roll camera, head bob, landing dip and lean. Nobody has yet judged how it feels. All numbers in `src/shared/Config/MovementConfig.luau` are untuned first guesses.
 
 Keys: `W A S D` move, `Left Shift` sprint (hold), `C`, `Left Ctrl` or (on a Mac) `Left Command` crouch (hold; press while sprinting to slide), `Space` jump / manual clamber / pull up / wall jump, `R` quick turn, `P` settings.
 
@@ -216,14 +212,7 @@ Vault / mantle / ledge grab: move into the obstacle (automatic), or press Space 
 
 ## Open items specific to movement
 
-| ID | Status |
-| :-- | :-- |
-| Q2 | **Decided:** keyboard and mouse for the prototype, built on an input foundation that gamepad and touch can plug into later. |
-| Q3 | **Decided:** a custom rig with a visible body. Players see their own hands when carrying no weapon. Still open: who builds the rig, and what stands in for it during the prototype. |
-| Q4 | Mostly decided (see "Clambering mode"); details open. |
-| Q5 | Partly decided (see "Stamina and momentum"); details open. |
-| Q6 / C8 | Mostly decided (see "Weight model"): threshold-based. Loadout does not count for its owner; weight lowers top speed. Open: threshold and maximum values. |
-| Q7 | **Decided:** placeholder animations are fine for now. |
+See `DECISIONS.md`: Q2–Q7, C8 and C12.
 
 ## Character and input [Established — user decision 2026-11-10]
 

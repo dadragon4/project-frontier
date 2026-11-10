@@ -4,6 +4,10 @@ return {
 	-- Show the on-screen movement readout (state and speed).
 	ShowDebugReadout = true,
 
+	-- Let the scripted movement tests be started (see src/client/Dev/MovementTests).
+	-- They need the test course.
+	MovementTests = true,
+
 	TestCourse = {
 		-- Build the greybox movement course when the server starts and spawn
 		-- players on it.

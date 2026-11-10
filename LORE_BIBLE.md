@@ -1,6 +1,6 @@
 # LORE_BIBLE.md — PROJECT FRONTIER
 
-Everything here is the user's lore. Nothing in this file has been invented by the agent. Status labels are defined in `AGENTS.md`; register entries (`Cn`, `Qn`) are in `TASKS.md`.
+Everything here is the user's lore. Nothing in this file has been invented by the agent. Status labels are defined in `AGENTS.md`; register entries (`Cn`, `Qn`) are in `DECISIONS.md`.
 
 Items marked **(ruling 2026-11-10)** are the user's direct decisions settling earlier conflicts between the concept doc and the master prompt; they override both.
 

@@ -1,49 +1,41 @@
 # TECHNICAL_ARCHITECTURE.md — PROJECT FRONTIER
 
-Status labels are defined in `AGENTS.md`. Register entries are in `TASKS.md`.
+Status labels are defined in `AGENTS.md`. Register entries are in `DECISIONS.md`.
 
-## Current state of the project (inspected 2026-11-10)
+## Code map (2026-11-10)
 
-- `Roblox Studio/` was an **empty folder**. No place file, no scripts, no Rojo project, no git repository.
-- None of the common Roblox command-line tools (Rojo, Rokit/Aftman, Wally, Selene, StyLua) are installed on this machine.
-- There is therefore no existing code, no technical debt, and nothing functional yet.
-
-Update, same day: a place file `Project Frontier.rbxl` now sits in the folder (not yet inspected); the Roblox Studio MCP server is registered for this folder; a local git repository is initialized. The user chose git with a private GitHub repository, to be shared with a second developer.
-
-**[Proposed] Two-developer workflow.** Code lives as files in git and is synced into Studio with Rojo, so both developers can review and merge each other's scripts. A place file is a single binary that git cannot merge, so the world itself (maps, models, the rig) is better shared through Roblox's Team Create, where both developers edit the same published place.
-
-**Decided by the user, 2026-11-10:** the place is shared with the second developer through Roblox; the code is shared through the GitHub repo. The `.rbxl` file is therefore kept out of git.
-
-### What exists in code now
+Open only the files that own what you are changing.
 
 ```text
 default.project.json                 Rojo mapping (below)
+tools/studio.py                      drives Studio from the command line; `test` runs the scripted checks
 src/shared/Config/MovementConfig     every movement tuning number
-src/shared/Config/DevConfig          test-course and debug switches
+src/shared/Config/DevConfig          test-course, debug-readout and test switches
 src/client/Main.client               starts everything when the character spawns
-src/client/Input                     actions ("Sprint", "Crouch", ...) mapped to keys
+src/client/Input                     actions ("Sprint", "Crouch", ...) mapped to keys; press buffering
 src/client/Settings                  the player's own preferences (not saved yet)
 src/client/UI/SettingsPanel          settings window on P
 src/client/Camera/FirstPersonCamera  first-person view and all camera feel effects
-src/client/Movement/MovementController   owns speed/direction, obstacle detection, runs the current state
-src/client/Movement/States/*         Walk, Sprint, Crouch, Slide, Air, Roll, Mantle, Vault, LedgeHang, WallRun
+src/client/Movement/MovementController   per-frame loop: input, ground, jump, speed rules, runs the current state
+src/client/Movement/Detection        raycast checks: obstacles to vault/mantle/hang from, wall-run walls, room to stand
+src/client/Movement/States/*         one file per state: Walk, Sprint, Crouch, Slide, Air, Roll, Mantle, Vault, LedgeHang, WallRun
 src/client/Movement/DebugReadout     on-screen state and speed
+src/client/Dev/MovementTests         scripted movement checks on the test course
 src/server/TestCourse.server         builds the greybox course at server start
 src/server/CharacterCollision.server stops players' arms and legs colliding with the world
 ```
 
-Two Roblox behaviours found in testing (2026-11-10) that the movement code depends on:
+Rojo maps these into three folders it owns and touches nothing else in the place: `ReplicatedStorage.Shared`, `ServerScriptService.Server`, `StarterPlayer.StarterPlayerScripts.Client`. The place file itself holds only the default baseplate and lighting; it is shared through Roblox and kept out of git (user decision 2026-11-10), because a place file is one binary that git cannot merge.
 
-- In the Humanoid's "Physics" state (used by mantle, vault, ledge hang and wall-run) every body part becomes solid, and setting `CanCollide` from a script does not stick. The fix is a collision group (`PlayerLimbs`, set up by the server) that stops limbs colliding with the world.
-- In that state gravity still acts between our frames, so a held body sags and a wall-run sinks. While such a state is active, a `VectorForce` equal to the character's weight cancels gravity.
+**How movement works.** Roblox's own control script still reads the keyboard (and later the thumbstick) and tells the Humanoid which way the player wants to go. Straight afterwards, each frame, our controller reads that wish from `Humanoid.MoveDirection`, works out a velocity using our own acceleration rules, and tells the Humanoid to walk in that direction at that speed. States that move the body directly (mantle, vault, ledge hang, wall-run) put the Humanoid in its "Physics" state instead.
 
-Rojo maps these into three folders it owns and touches nothing else in the place: `ReplicatedStorage.Shared`, `ServerScriptService.Server`, `StarterPlayer.StarterPlayerScripts.Client`.
+**Roblox behaviours found in Studio that the code depends on** (check the live place, not memory, before touching Roblox's default scripts):
 
-How M1.1 works, briefly: Roblox's own control script still reads the keyboard (and later the thumbstick) and tells the Humanoid which way the player wants to go. Straight afterwards, each frame, our controller reads that wish from `Humanoid.MoveDirection`, works out a velocity using our own acceleration rules, and tells the Humanoid to walk in that direction at that speed.
-
-**Found in Studio, 2026-11-10:** Roblox's default player scripts are not where older tutorials say. `PlayerModule` now lives at `StarterPlayer.PlayerModule` (not in `PlayerScripts`), and its public interface is only `ControlModule.Enabled` — the old `GetControls()` / `GetMoveVector()` calls are gone. It still moves the character at render priority `Input`, which is what our ordering relies on. Scripts also cannot set `Player.DevEnableMouseLock`. Anything touching Roblox's default scripts should be checked against the live place, not from memory. Crouching lowers the Humanoid's hip height; sliding is a state that locks direction and bleeds speed off through friction.
-
-Because nothing existed at review time, everything below about structure and implementation is a starting recommendation, not a description of real code. It will be replaced by facts as code is written.
+- `PlayerModule` lives at `StarterPlayer.PlayerModule` (not in `PlayerScripts`), and its public interface is only `ControlModule.Enabled`; the old `GetControls()` / `GetMoveVector()` calls are gone. It still moves the character at render priority `Input`, which our ordering relies on.
+- Scripts cannot set `Player.DevEnableMouseLock`.
+- In the Humanoid's "Physics" state every body part becomes solid, and setting `CanCollide` from a script does not stick. A collision group (`PlayerLimbs`, set up by the server) stops limbs colliding with the world.
+- In that state gravity still acts between our frames, so a held body sags. While such a state is active, a `VectorForce` equal to the character's weight cancels gravity.
+- Studio runs at a low frame rate while its window is in the background, which matters for timing-sensitive tests.
 
 ## Principles [Established]
 
@@ -77,8 +69,6 @@ Workspace              Map · InteractiveObjects · NPCs                  (the 3
 ```
 
 Folders are created only when something real goes in them.
-
-**[Proposed] Files on disk, synced into Studio with Rojo.** Scripts live as `.luau` files in this folder and Rojo copies them into Studio live. This gives version history (git), lets the agent read and edit code directly, and keeps code reviewable. The alternative is writing scripts only inside Studio, which is simpler to start but leaves the agent unable to see or edit the code except through the Studio window. This is decision **[Q1]**.
 
 ## Hubs and deployments [Established direction, details Open]
 
@@ -155,20 +145,13 @@ Permanent data (faction progression, XP, reputation, unlocks, blueprints, hideou
 
 None is to be created before its phase.
 
-## Tooling [Proposed] [Q1]
+## Tooling
 
-| Tool | Purpose |
-| :-- | :-- |
-| git | Version history and the ability to undo |
-| Rojo | Sync script files on disk into Studio |
-| Rokit | Installs and pins the versions of Rojo and the tools below |
-| StyLua, Selene | Automatic formatting and catching common Luau mistakes |
+In use: git (private GitHub repo), Rojo 7.7.1 (Homebrew) with its Studio plugin, and `tools/studio.py` (talks to Studio's built-in MCP server). **[Proposed]**, not installed: Rokit (pins tool versions), StyLua and Selene (formatting and catching common Luau mistakes). No gameplay libraries or frameworks are proposed.
 
-No gameplay libraries or frameworks are proposed.
+## Testing approach
 
-## Testing approach [Proposed]
-
-- Pure logic (stamina, weight maths, state-transition rules) written so it can be checked without a running character.
-- A greybox **movement test course** place: plain blocks with known dimensions — sprint lanes, slide gaps, vault obstacles of several heights, ledges, wall-run walls.
-- Studio play-testing for feel; Studio's multi-client test mode for anything networked.
+- Scripted checks on the greybox test course, run with `python3 tools/studio.py test` (see `AGENTS.md` → Testing). Each new ability gets a check there.
+- Pure logic (stamina, weight maths) written so it can be checked without a running character. There is no Luau runtime outside Studio on this machine, so these checks would also run through Studio.
+- The user play-tests for feel; Studio's multi-client test mode for anything networked.
 - Every report states what was and was not tested.

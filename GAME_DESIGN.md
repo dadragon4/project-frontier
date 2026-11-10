@@ -1,6 +1,6 @@
 # GAME_DESIGN.md — PROJECT FRONTIER
 
-Status labels are defined in `AGENTS.md`. Register entries (`Cn`, `Qn`) are in `TASKS.md`.
+Status labels are defined in `AGENTS.md`. Register entries (`Cn`, `Qn`) are in `DECISIONS.md`.
 
 ## Identity [Established]
 

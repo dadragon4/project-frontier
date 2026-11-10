@@ -1,0 +1,14 @@
+#!/bin/sh
+# Stops a direct push to main. Work goes in on a branch and a pull request
+# (see CONTRIBUTING.md). GitHub's own branch protection needs a paid plan
+# for private repositories, so this guard runs on each developer's machine.
+# Turn it on once with:  git config core.hooksPath .githooks
+# Deliberate override:   git push --no-verify
+while read -r _local_ref _local_sha remote_ref _remote_sha; do
+	if [ "$remote_ref" = "refs/heads/main" ]; then
+		echo "Direct pushes to main are blocked. Push a branch and open a pull request." >&2
+		echo "(To override on purpose: git push --no-verify)" >&2
+		exit 1
+	fi
+done
+exit 0
