@@ -1,6 +1,8 @@
 -- Running. Speed builds up over time rather than switching on instantly.
 
-local Sprint = {}
+local Sprint = {
+	allowsGroundRoll = true, -- double-tapping crouch here starts a roll
+}
 
 function Sprint.enter(ctx)
 	ctx.crouched = false

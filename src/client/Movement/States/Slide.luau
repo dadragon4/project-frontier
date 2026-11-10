@@ -2,7 +2,9 @@
 -- and slopes add or remove speed. Jumping out of a slide keeps the speed
 -- (the Air state takes over as soon as the character leaves the ground).
 
-local Slide = {}
+local Slide = {
+	allowsGroundRoll = true, -- double-tapping crouch here starts a roll
+}
 
 function Slide.enter(ctx)
 	local slide = ctx.config.Slide

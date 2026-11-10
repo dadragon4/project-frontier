@@ -53,9 +53,18 @@ This supersedes the concept doc's "vaulting should require deliberate player inp
 
 ### Roll [Established — user decision 2026-11-10]
 
-When a player presses crouch while in the air, before touching the ground, they roll on landing.
+Two ways to roll (user decisions 2026-11-10):
 
-**[Proposed]** details as built: the roll keeps the landing speed (at least 10, at most 24 studs/s), lasts about half a second, keeps the body low, and turns the camera over once (can be set to 0 in the config). Afterwards: crouch held → crouch; sprint held → sprint; otherwise walk. Not built: a hard-landing penalty that the roll would avoid (a possible later addition, not decided).
+- **Air roll:** press crouch while in the air, before touching the ground, and you roll on landing — but only if you fell from a height of at least 6 studs. **Agent's reading, to confirm:** "height" is measured as the drop from the highest point of the jump or fall to the landing spot. A normal jump on flat ground (3.25 studs) is too low; jumping or falling off something 6 studs or taller qualifies. Below that, crouch pressed in the air behaves as before: landing fast gives a slide, landing slowly with crouch held gives a crouch.
+- **Ground roll:** press crouch twice quickly (within 0.3 seconds) while on the ground — standing, walking, sprinting, crouching or sliding. The roll goes in the direction you are pushing, or straight ahead if you are not.
+
+**[Proposed]** details as built: the roll keeps the speed you had (at least 10, at most 24 studs/s), lasts about half a second, keeps the body low, and turns the camera over once (can be set to 0 in the config). Afterwards: crouch held → crouch; sprint held → sprint; otherwise walk. Not built: a hard-landing penalty that the roll would avoid (a possible later addition, not decided).
+
+### Quick turn [Established — user decision 2026-11-10]
+
+Pressing `R` makes the player do a quick turn: the view swings round 180 degrees.
+
+**[Proposed]** details as built: the turn takes 0.18 seconds and works in every state except mid-mantle. Speed is not kept through the turn; the normal turning rules apply, so a sprinting player slows sharply and then accelerates the other way. (An alternative would be to keep full speed through the turn; not decided.)
 
 ### Mantle heights [Established — user decision 2026-11-10]
 
@@ -156,7 +165,8 @@ See `TECHNICAL_ARCHITECTURE.md` → "Movement architecture".
 | Turning (no "ice") | **Tested in Studio**: full reverse from sprint to walking the other way takes about 0.45 s (was about 1.6 s) |
 | Crouch (with headroom check) | **Tested in Studio**: lowers, slows (now 7), stays crouched under the tunnel roof, stands after it |
 | Slide (momentum, slope, steering) | **Tested in Studio** on flat ground: from sprint it starts at 24 and reaches crouch in about 0.65 s (was about 1.5 s). Slope and steering **not yet tested** |
-| Roll | **Tested in Studio**: crouch tapped mid-jump rolls on landing, keeps speed, camera turns over once and returns level. **Not yet looked at by eye** |
+| Roll | **Tested in Studio**: no roll from a normal flat-ground jump (slides instead); air roll after jumping off the 8 stud ledge; ground roll from a crouch double-tap while standing and while sprinting; two slow taps (0.6 s apart) correctly do not roll. Camera turn-over returns level. **Not yet looked at by eye** |
+| Quick turn (`R`) | **Tested in Studio**: view turns 180° in about 0.2 s and stays turned, standing and while sprinting |
 | Mantle (automatic) | **Tested in Studio**: 4, 5 and 6 stud blocks mantled from a running jump; 8 stud ledge correctly not mantled. Manual mode **not built** |
 | Air momentum | Jump and landing tested from standstill; momentum in the air **not yet tested** |
 | Input buffering and coyote jump | Buffered jump **tested in Studio** (pressed in mid-air, fired on landing). Slide-on-landing and coyote jump **not yet tested** |
@@ -169,7 +179,9 @@ Keys: `W A S D` move, `Left Shift` sprint (hold), `C`, `Left Ctrl` or (on a Mac)
 
 Jump height is 3.25 studs (lowered from 6, then 4.5, at the user's request on 2026-11-10 for a more realistic human jump; Roblox's default is 7.2).
 
-Roll: tap crouch while in the air; you roll when you land.
+Roll: tap crouch while in the air after a drop of 6 studs or more, or double-tap crouch on the ground.
+
+Quick turn: `R`.
 
 Mantle: jump at a block between 3 and 6.5 studs tall while pushing toward it.
 

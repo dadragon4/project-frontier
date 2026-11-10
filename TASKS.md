@@ -54,7 +54,8 @@ Split into four slices so there is something playable and testable after each. "
 - [ ] Manual vault.
 - [x] Mantle — automatic mode, 3 to 6.5 studs. Manual mode and its key still to do.
 - [ ] Ledge grab.
-- [x] Roll on landing (crouch pressed in the air) — added at the user's request.
+- [x] Roll — air roll (6 stud minimum drop) and ground roll (crouch double-tap), at the user's request.
+- [x] Quick turn on `R`, at the user's request.
 
 ### M1.3 Advanced traversal and resources — *needs Q5, Q6/C8*
 - [ ] Wall-run.

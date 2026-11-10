@@ -1,8 +1,12 @@
--- Roll: entered on landing when crouch was pressed while airborne.
+-- Roll. Two ways in (see MovementConfig.Roll):
+--   air roll:    on landing from a big enough fall, if crouch was pressed
+--                while airborne (decided in Air);
+--   ground roll: crouch double-tapped while on the ground (decided in
+--                MovementController).
 --
--- The character stays low, keeps rolling forward in the direction it was
--- travelling (at least Roll.MinSpeed), and the camera turns over once.
--- When the roll finishes, the next state depends on what is held.
+-- The character stays low, rolls forward (at least Roll.MinSpeed), and the
+-- camera turns over once. When the roll finishes, the next state depends on
+-- what is held.
 
 local Roll = {}
 
@@ -11,13 +15,24 @@ local function smoothstep(t: number): number
 	return t * t * (3 - 2 * t)
 end
 
-function Roll.enter(ctx)
+function Roll.enter(ctx, previous: string)
 	local roll = ctx.config.Roll
 	ctx.crouched = true
 	ctx.input.consume("Crouch")
+	ctx.input.consumeDoubleTap("Crouch")
 
+	-- Air roll: keep going the way we were travelling.
+	-- Ground roll: go where the player is pushing, else the way we were
+	-- moving, else straight ahead.
 	local speed = ctx:getSpeed()
-	local direction = if speed > 0.5 then ctx.velocity / speed else ctx.forward
+	local direction
+	if previous ~= "Air" and ctx.wishDir ~= Vector3.zero then
+		direction = ctx.wishDir
+	elseif speed > 0.5 then
+		direction = ctx.velocity / speed
+	else
+		direction = ctx.forward
+	end
 	ctx.rollDirection = direction
 	ctx.velocity = direction * math.clamp(speed, roll.MinSpeed, roll.MaxSpeed)
 

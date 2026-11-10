@@ -61,8 +61,13 @@ return {
 		SteerRate = 1.2, -- how fast the slide direction can turn, radians per second
 	},
 
-	-- Roll: crouch pressed while airborne, before touching the ground.
+	-- Roll. Two ways in:
+	--   air roll:    crouch pressed while airborne, and the fall (highest
+	--                point to landing) was at least MinFallHeight;
+	--   ground roll: crouch pressed twice quickly while on the ground.
 	Roll = {
+		MinFallHeight = 6,
+		DoubleTapWindow = 0.3, -- max seconds between the two crouch presses
 		Duration = 0.55,
 		MinSpeed = 10, -- a roll always carries you forward at least this fast
 		MaxSpeed = 24, -- landing faster than this is trimmed to this
@@ -82,6 +87,11 @@ return {
 		ForwardTime = 0.15, -- seconds to move onto the ledge once up
 		ExitSpeed = 10, -- forward speed when the mantle finishes (capped by entry speed)
 		Cooldown = 0.3, -- seconds before another mantle can start
+	},
+
+	-- Quick turn (R): the view swings round 180 degrees.
+	QuickTurn = {
+		Duration = 0.18, -- seconds for the full half-turn
 	},
 
 	Camera = {

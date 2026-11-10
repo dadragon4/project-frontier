@@ -16,6 +16,7 @@
 --                                     itself, so the controller must not
 --                                     send walk instructions
 --     blocksJump = true               optional: no buffered/coyote jumps
+--     allowsGroundRoll = true         optional: a crouch double-tap rolls
 -- where ctx is this controller.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -75,6 +76,9 @@ function MovementController.new(character: Model, input)
 	self.lastMantleEnd = -math.huge
 	self.pendingLedge = nil -- set by Air when it finds a ledge, read by Mantle
 	self.cameraPitch = 0 -- extra camera pitch in radians, applied by the camera (used by Roll)
+	self.quickTurnRemaining = 0 -- radians of quick-turn still to apply; the camera does the turning
+	self.airPeakY = 0 -- highest the feet have been during the current time in the air
+	self.lastFallHeight = 0 -- how far the feet dropped (peak to landing) on the most recent landing
 
 	self.stateName = ""
 	self.state = nil
@@ -354,7 +358,13 @@ end
 
 function MovementController:_readGround(dt: number)
 	local onFloor = self.humanoid.FloorMaterial ~= Enum.Material.Air
+	local feetY = self:getFeetY()
 	if onFloor then
+		if self.airTime > 0 then
+			-- Just landed: remember how far we fell.
+			self.lastFallHeight = math.max(self.airPeakY - feetY, 0)
+		end
+		self.airPeakY = feetY
 		self.airTime = 0
 		-- Roblox keeps reporting the floor for a frame or two after a jump
 		-- starts, while the body is already rising. Ignore those frames, or
@@ -367,6 +377,7 @@ function MovementController:_readGround(dt: number)
 			self.leftGroundAt = os.clock() - dt
 		end
 		self.airTime += dt
+		self.airPeakY = math.max(self.airPeakY, feetY)
 	end
 	-- A jump is over once we are on a floor again. (The short delay is
 	-- because the floor is still detected for a frame or two after take-off.)
@@ -463,6 +474,24 @@ function MovementController:_update(dt: number)
 	self:_handleJump()
 	if not self.state.controlsBody then
 		self:_reconcileBlocked()
+	end
+
+	-- Quick turn: the camera performs the actual rotation over a few frames.
+	if self.input.isBuffered("QuickTurn", 0.1) then
+		self.input.consume("QuickTurn")
+		if self.quickTurnRemaining <= 0 and self.stateName ~= "Mantle" then
+			self.quickTurnRemaining = math.pi
+		end
+	end
+
+	-- Ground roll: crouch double-tapped while on the ground.
+	local roll = Config.Roll
+	if
+		self.state.allowsGroundRoll
+		and self.grounded
+		and self.input.doubleTapped("Crouch", roll.DoubleTapWindow, Config.Buffer.Slide)
+	then
+		self:setState("Roll")
 	end
 
 	self.stateTime += dt

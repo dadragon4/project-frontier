@@ -84,6 +84,17 @@ function FirstPersonCamera:_update(dt: number)
 
 	self:_showBody()
 
+	-- Quick turn. Unlike the effects below, this rotation is meant to stick,
+	-- so it is applied straight to the camera and not recorded in
+	-- self.applied (Roblox's camera script then carries on from the new
+	-- direction).
+	if controller.quickTurnRemaining > 0 then
+		local step = math.min(controller.quickTurnRemaining, math.pi / Config.QuickTurn.Duration * dt)
+		controller.quickTurnRemaining -= step
+		local cf = camera.CFrame
+		camera.CFrame = CFrame.new(cf.Position) * CFrame.Angles(0, step, 0) * cf.Rotation
+	end
+
 	-- Field of view widens with speed.
 	local speed = controller:getSpeed()
 	local sprintRange = math.max(Config.SprintSpeed - Config.WalkSpeed, 0.01)

@@ -31,6 +31,7 @@ local BINDINGS: { [string]: { Enum.KeyCode } } = {
 	-- Roblox's control script still performs the ordinary jump. We listen to
 	-- the same key only so that early presses can be buffered.
 	Jump = { Enum.KeyCode.Space },
+	QuickTurn = { Enum.KeyCode.R },
 }
 
 local Input = {}
@@ -39,14 +40,23 @@ local keyToAction: { [Enum.KeyCode]: string } = {}
 local heldKeys: { [Enum.KeyCode]: boolean } = {}
 local virtualHeld: { [string]: boolean } = {}
 local heldCount: { [string]: number } = {}
-local lastPressTime: { [string]: number } = {}
+local lastPressTime: { [string]: number } = {} -- cleared when a press is consumed
+-- Raw press history for double-tap detection. Not affected by consume(),
+-- because the first tap of a double-tap is often used by something else
+-- (for example it starts a slide).
+local rawLastPress: { [string]: number } = {}
+local rawPrevPress: { [string]: number } = {}
+local doubleTapUsed: { [string]: number } = {}
 local started = false
 
 local function press(action: string)
 	local count = (heldCount[action] or 0) + 1
 	heldCount[action] = count
 	if count == 1 then
-		lastPressTime[action] = os.clock()
+		local now = os.clock()
+		lastPressTime[action] = now
+		rawPrevPress[action] = rawLastPress[action]
+		rawLastPress[action] = now
 	end
 end
 
@@ -59,6 +69,8 @@ local function releaseEverything()
 	table.clear(virtualHeld)
 	table.clear(heldCount)
 	table.clear(lastPressTime)
+	table.clear(rawLastPress)
+	table.clear(rawPrevPress)
 end
 
 function Input.start()
@@ -113,6 +125,22 @@ end
 function Input.pressedSince(action: string, since: number): boolean
 	local pressedAt = lastPressTime[action]
 	return pressedAt ~= nil and pressedAt >= since
+end
+
+-- Was the action pressed twice in quick succession: the second press within
+-- `window` seconds of the first, and the second press within the last
+-- `recent` seconds? Each double-tap only counts once (see consumeDoubleTap).
+function Input.doubleTapped(action: string, window: number, recent: number): boolean
+	local last = rawLastPress[action]
+	local prev = rawPrevPress[action]
+	if last == nil or prev == nil or doubleTapUsed[action] == last then
+		return false
+	end
+	return last - prev <= window and os.clock() - last <= recent
+end
+
+function Input.consumeDoubleTap(action: string)
+	doubleTapUsed[action] = rawLastPress[action]
 end
 
 -- Mark the most recent press of this action as used.

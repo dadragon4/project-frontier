@@ -1,6 +1,8 @@
 -- Standing on the ground, walking or idle.
 
-local Walk = {}
+local Walk = {
+	allowsGroundRoll = true, -- double-tapping crouch here starts a roll
+}
 
 function Walk.enter(ctx)
 	ctx.crouched = false

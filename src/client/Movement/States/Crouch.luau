@@ -1,7 +1,9 @@
 -- Crouched on the ground. Stays crouched while the key is held, or while
 -- there is no room to stand.
 
-local Crouch = {}
+local Crouch = {
+	allowsGroundRoll = true, -- double-tapping crouch here starts a roll
+}
 
 function Crouch.enter(ctx)
 	ctx.crouched = true
