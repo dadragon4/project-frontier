@@ -50,10 +50,11 @@ Split into four slices so there is something playable and testable after each. "
 - [x] On-screen debug readout (state, speed).
 
 ### M1.2 Obstacle traversal — *needs Q4*
-- [ ] Obstacle and ledge detection.
+- [x] Obstacle and ledge detection (for mantle).
 - [ ] Manual vault.
-- [ ] Mantle.
+- [x] Mantle — automatic mode, 3 to 6.5 studs. Manual mode and its key still to do.
 - [ ] Ledge grab.
+- [x] Roll on landing (crouch pressed in the air) — added at the user's request.
 
 ### M1.3 Advanced traversal and resources — *needs Q5, Q6/C8*
 - [ ] Wall-run.

@@ -51,6 +51,18 @@ This supersedes the concept doc's "vaulting should require deliberate player inp
 - Supports escaping, pursuing, and reaching hidden areas and stored resources.
 - Climbing performance is affected by weight.
 
+### Roll [Established — user decision 2026-11-10]
+
+When a player presses crouch while in the air, before touching the ground, they roll on landing.
+
+**[Proposed]** details as built: the roll keeps the landing speed (at least 10, at most 24 studs/s), lasts about half a second, keeps the body low, and turns the camera over once (can be set to 0 in the config). Afterwards: crouch held → crouch; sprint held → sprint; otherwise walk. Not built: a hard-landing penalty that the roll would avoid (a possible later addition, not decided).
+
+### Mantle heights [Established — user decision 2026-11-10]
+
+The user asked for mantling onto "a block that is at least 5 blocks high". **Agent's reading, to confirm:** mantling must handle blocks of 5 studs and more. As built, it works on blocks 3 to 6.5 studs tall; lower blocks are simply jumped onto (vaulting comes later), taller ledges are out of reach (ledge grab comes later). Both limits are in the config.
+
+As built it is **automatic** (keyboard default per the earlier decision): jump at the block while pushing toward it. The manual mode with its own key and stamina refund is not built yet; the key has not been chosen.
+
 ### Crouch — Essential [Established]
 
 Responsive and intuitive. For stealth, tactical positioning, getting under obstacles, and reacting to threats.
@@ -140,19 +152,26 @@ See `TECHNICAL_ARCHITECTURE.md` → "Movement architecture".
 | Ability | Status (2026-11-10) |
 | :-- | :-- |
 | First-person camera with visible body | Runs without errors; first-person lock and FOV change confirmed. Body visibility **not yet looked at** |
-| Walk / sprint with acceleration | **Tested in Studio**: 14 and 24 studs/s reached |
-| Crouch (with headroom check) | **Tested in Studio**: lowers, slows to 8, stays crouched under the tunnel roof, stands after it |
-| Slide (momentum, slope, steering) | **Tested in Studio** on flat ground (starts at 30, ends in crouch). Slope and steering **not yet tested** |
+| Walk / sprint with acceleration | **Tested in Studio**: 12 and 20 studs/s reached (retuned 2026-11-10: slower speeds and acceleration) |
+| Turning (no "ice") | **Tested in Studio**: full reverse from sprint to walking the other way takes about 0.45 s (was about 1.6 s) |
+| Crouch (with headroom check) | **Tested in Studio**: lowers, slows (now 7), stays crouched under the tunnel roof, stands after it |
+| Slide (momentum, slope, steering) | **Tested in Studio** on flat ground: from sprint it starts at 24 and reaches crouch in about 0.65 s (was about 1.5 s). Slope and steering **not yet tested** |
+| Roll | **Tested in Studio**: crouch tapped mid-jump rolls on landing, keeps speed, camera turns over once and returns level. **Not yet looked at by eye** |
+| Mantle (automatic) | **Tested in Studio**: 4, 5 and 6 stud blocks mantled from a running jump; 8 stud ledge correctly not mantled. Manual mode **not built** |
 | Air momentum | Jump and landing tested from standstill; momentum in the air **not yet tested** |
 | Input buffering and coyote jump | Buffered jump **tested in Studio** (pressed in mid-air, fired on landing). Slide-on-landing and coyote jump **not yet tested** |
-| Vault, mantle, ledge grab | Not started (M1.2) |
+| Vault, ledge grab | Not started (M1.2) |
 | Wall-run, transitions, stamina, weight | Not started (M1.3) |
 
 Tests on 2026-11-10 were run by the agent through Studio with simulated key presses, reading the debug readout. Nobody has yet judged how it feels. All numbers in `src/shared/Config/MovementConfig.luau` are untuned first guesses.
 
 Keys: `W A S D` move, `Left Shift` sprint (hold), `C`, `Left Ctrl` or (on a Mac) `Left Command` crouch (hold; press while sprinting to slide), `Space` jump.
 
-Jump height is 4.5 studs (lowered from 6 at the user's request, 2026-11-10; Roblox's default is 7.2).
+Jump height is 3.25 studs (lowered from 6, then 4.5, at the user's request on 2026-11-10 for a more realistic human jump; Roblox's default is 7.2).
+
+Roll: tap crouch while in the air; you roll when you land.
+
+Mantle: jump at a block between 3 and 6.5 studs tall while pushing toward it.
 
 **Known risk with Command as crouch:** macOS treats Command plus a letter as a shortcut. Crouch-walking means holding Command with `W`, `A`, `S` or `D`, and `Command+W` / `Command+Q` normally close the window or quit the app. macOS also often fails to report other keys being released while Command is held, which can leave a movement key "stuck". To be checked in Studio and in the Roblox player before relying on it.
 

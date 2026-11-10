@@ -108,6 +108,13 @@ function Input.isBuffered(action: string, window: number): boolean
 	return pressedAt ~= nil and os.clock() - pressedAt <= window
 end
 
+-- Was the action pressed at or after time `since` (an os.clock() value),
+-- and not yet consumed?
+function Input.pressedSince(action: string, since: number): boolean
+	local pressedAt = lastPressTime[action]
+	return pressedAt ~= nil and pressedAt >= since
+end
+
 -- Mark the most recent press of this action as used.
 function Input.consume(action: string)
 	lastPressTime[action] = nil
