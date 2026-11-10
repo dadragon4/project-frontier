@@ -24,9 +24,9 @@ function FirstPersonCamera.new(controller)
 	self.roll = 0
 
 	local player = Players.LocalPlayer
+	-- In locked first person the mouse is always captured, so Roblox's
+	-- shift-lock toggle (also on Left Shift) does not interfere with sprint.
 	player.CameraMode = Enum.CameraMode.LockFirstPerson
-	-- Left Shift is our sprint key, so turn off Roblox's shift-lock toggle.
-	player.DevEnableMouseLock = false
 
 	controller.humanoid.CameraOffset = Config.Camera.Offset
 

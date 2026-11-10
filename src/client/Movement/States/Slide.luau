@@ -7,6 +7,8 @@ local Slide = {}
 function Slide.enter(ctx)
 	local slide = ctx.config.Slide
 	ctx.crouched = true
+	-- The crouch press that started this slide has now been used.
+	ctx.input.consume("Crouch")
 
 	local speed = ctx:getSpeed()
 	local direction = if speed > 0.01 then ctx.velocity / speed else ctx.forward

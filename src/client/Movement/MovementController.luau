@@ -13,7 +13,6 @@
 --     exit(ctx)                       optional
 -- where ctx is this controller.
 
-local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -30,6 +29,7 @@ local States = {
 }
 
 local RENDER_STEP_NAME = "FrontierMovement"
+local PRE_STEP_NAME = "FrontierMovementPre"
 
 local MovementController = {}
 MovementController.__index = MovementController
@@ -57,11 +57,6 @@ function MovementController.new(character: Model, input)
 	self.input = input
 	self.config = Config
 
-	-- Roblox's control script: gives us the desired move direction for
-	-- whatever device the player is using.
-	local playerModule = require(Players.LocalPlayer:WaitForChild("PlayerScripts"):WaitForChild("PlayerModule"))
-	self.controls = playerModule:GetControls()
-
 	self.velocity = Vector3.zero -- intended horizontal velocity
 	self.wishDir = Vector3.zero -- direction the player is asking for (unit, or zero)
 	self.forward = Vector3.new(0, 0, -1) -- camera facing, flattened
@@ -77,6 +72,18 @@ function MovementController.new(character: Model, input)
 	self._crouchAlpha = 0
 	self._appliedDrop = 0
 	self._destroyed = false
+	self._jumped = false -- true from take-off until we are back on the ground
+	self._jumpedAt = 0
+
+	-- Fires for every jump, whether Roblox's control script or our buffered
+	-- jump started it.
+	self._stateChanged = self.humanoid.StateChanged:Connect(function(_, new)
+		if new == Enum.HumanoidStateType.Jumping then
+			self._jumped = true
+			self._jumpedAt = os.clock()
+			self.input.consume("Jump")
+		end
+	end)
 
 	self.rayParams = RaycastParams.new()
 	self.rayParams.FilterType = Enum.RaycastFilterType.Exclude
@@ -87,8 +94,24 @@ function MovementController.new(character: Model, input)
 
 	self:setState("Walk")
 
-	-- Run just after Roblox's control script (which runs at Input priority),
-	-- so our movement instruction is the one the Humanoid ends up with.
+	-- Three things happen in order every frame:
+	--   1. (just before Roblox's control script) we clear the Humanoid's move
+	--      direction;
+	--   2. Roblox's control script, at Input priority, reads the keyboard /
+	--      thumbstick / touch stick and tells the Humanoid which way the
+	--      player wants to go;
+	--   3. (just after) we read that wish from Humanoid.MoveDirection, apply
+	--      our own acceleration rules, and give the Humanoid our instruction,
+	--      which is the one it ends up following.
+	-- Step 1 matters because our own instruction from the previous frame is
+	-- still stored in MoveDirection. Without clearing it, a frame where the
+	-- control script stays silent would read our old instruction back as if
+	-- the player had asked for it.
+	RunService:BindToRenderStep(PRE_STEP_NAME, Enum.RenderPriority.Input.Value - 1, function()
+		if self.humanoid.Parent then
+			self.humanoid:Move(Vector3.zero, false)
+		end
+	end)
 	RunService:BindToRenderStep(RENDER_STEP_NAME, Enum.RenderPriority.Input.Value + 1, function(dt)
 		self:_update(dt)
 	end)
@@ -101,6 +124,8 @@ function MovementController:destroy()
 		return
 	end
 	self._destroyed = true
+	self._stateChanged:Disconnect()
+	RunService:UnbindFromRenderStep(PRE_STEP_NAME)
 	RunService:UnbindFromRenderStep(RENDER_STEP_NAME)
 end
 
@@ -193,10 +218,9 @@ function MovementController:_readInput()
 	local facing = CFrame.Angles(0, yaw, 0)
 	self.forward = facing.LookVector
 
-	-- GetMoveVector is in the player's own frame: X = right, -Z = forward.
-	local move = self.controls:GetMoveVector()
-	local wish = facing.RightVector * move.X + facing.LookVector * -move.Z
-	wish = planar(wish)
+	-- The direction Roblox's control script just asked for, in world space.
+	-- It already accounts for the camera and for whichever device is in use.
+	local wish = planar(self.humanoid.MoveDirection)
 	if wish.Magnitude > 0.01 then
 		self.wishDir = wish.Unit
 	else
@@ -211,8 +235,40 @@ function MovementController:_readGround(dt: number)
 	else
 		self.airTime += dt
 	end
-	-- A short grace period stops stairs and small bumps counting as "airborne".
-	self.grounded = self.airTime <= Config.CoyoteTime
+	-- A jump is over once we are on a floor again. (The short delay is
+	-- because the floor is still detected for a frame or two after take-off.)
+	if self._jumped and onFloor and os.clock() - self._jumpedAt > 0.2 then
+		self._jumped = false
+	end
+
+	-- A short grace period stops stairs and small bumps counting as
+	-- "airborne". A deliberate jump counts as airborne straight away.
+	self.grounded = self.airTime <= Config.CoyoteTime and not self._jumped
+end
+
+-- Buffered jump and coyote jump.
+--   Buffered: jump pressed slightly before landing fires on landing.
+--   Coyote:   jump pressed slightly after running off an edge still fires.
+-- An ordinary jump (pressed while standing on the ground) is done by
+-- Roblox's control script and never reaches the code below.
+function MovementController:_handleJump()
+	if self._jumped then
+		return
+	end
+	if not self.input.isBuffered("Jump", Config.Buffer.Jump) then
+		return
+	end
+
+	if self.airTime == 0 then
+		-- On the ground with a remembered press: ask for a normal jump.
+		self.humanoid.Jump = true
+	elseif self.airTime <= Config.CoyoteTime then
+		-- Just left an edge: the Humanoid would refuse a normal jump in
+		-- mid-air, so force the jump state.
+		self.humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+	end
+	-- The press is consumed when the Humanoid actually enters its Jumping
+	-- state (see StateChanged above). If it never does, the press expires.
 end
 
 -- If we ran into something, our intended speed is higher than the real
@@ -271,6 +327,7 @@ function MovementController:_update(dt: number)
 
 	self:_readInput()
 	self:_readGround(dt)
+	self:_handleJump()
 	self:_reconcileBlocked()
 
 	self.stateTime += dt
@@ -281,8 +338,6 @@ function MovementController:_update(dt: number)
 
 	self:_applyCrouchHeight(dt)
 	self:_applyToHumanoid()
-
-	self.input.endFrame()
 end
 
 return MovementController

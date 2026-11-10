@@ -8,10 +8,13 @@ function Air.update(ctx, dt: number): string?
 	local config = ctx.config
 
 	if ctx.grounded and ctx.airTime == 0 then
-		if ctx.input.isDown("Crouch") then
-			if ctx:getSpeed() >= config.Slide.MinSpeed then
-				return "Slide"
-			end
+		-- Crouch held, or tapped just before touching down (buffered).
+		local held = ctx.input.isDown("Crouch")
+		local tapped = ctx.input.isBuffered("Crouch", config.Buffer.Slide)
+		if (held or tapped) and ctx:getSpeed() >= config.Slide.MinSpeed then
+			return "Slide"
+		end
+		if held then
 			return "Crouch"
 		end
 		if ctx:wantsSprint() then

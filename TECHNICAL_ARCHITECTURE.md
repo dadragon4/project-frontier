@@ -31,7 +31,9 @@ src/server/TestCourse.server         builds the greybox course at server start
 
 Rojo maps these into three folders it owns and touches nothing else in the place: `ReplicatedStorage.Shared`, `ServerScriptService.Server`, `StarterPlayer.StarterPlayerScripts.Client`.
 
-How M1.1 works, briefly: Roblox's own control script still reads the keyboard (and later the thumbstick), and we ask it for the direction the player wants to go. Each frame our controller works out a velocity from that direction using our own acceleration rules, then tells the Humanoid to walk in that direction at that speed. Crouching lowers the Humanoid's hip height; sliding is a state that locks direction and bleeds speed off through friction.
+How M1.1 works, briefly: Roblox's own control script still reads the keyboard (and later the thumbstick) and tells the Humanoid which way the player wants to go. Straight afterwards, each frame, our controller reads that wish from `Humanoid.MoveDirection`, works out a velocity using our own acceleration rules, and tells the Humanoid to walk in that direction at that speed.
+
+**Found in Studio, 2026-11-10:** Roblox's default player scripts are not where older tutorials say. `PlayerModule` now lives at `StarterPlayer.PlayerModule` (not in `PlayerScripts`), and its public interface is only `ControlModule.Enabled` — the old `GetControls()` / `GetMoveVector()` calls are gone. It still moves the character at render priority `Input`, which is what our ordering relies on. Scripts also cannot set `Player.DevEnableMouseLock`. Anything touching Roblox's default scripts should be checked against the live place, not from memory. Crouching lowers the Humanoid's hip height; sliding is a state that locks direction and bleeds speed off through friction.
 
 Because nothing existed at review time, everything below about structure and implementation is a starting recommendation, not a description of real code. It will be replaced by facts as code is written.
 

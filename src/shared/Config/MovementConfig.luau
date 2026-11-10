@@ -21,8 +21,14 @@ return {
 
 	-- Air
 	AirAccel = 20, -- steering strength while airborne (speed itself is kept)
-	JumpHeight = 6,
-	CoyoteTime = 0.12, -- how long after leaving the ground we still count as grounded
+	JumpHeight = 4.5, -- Roblox's default is 7.2
+	CoyoteTime = 0.12, -- how long after leaving the ground we still count as grounded (and may still jump)
+
+	-- Input buffering: how long an early press is remembered.
+	Buffer = {
+		Jump = 0.15,
+		Slide = 0.15,
+	},
 
 	-- If our intended speed exceeds the real speed by more than this, we assume
 	-- the character hit something and drop the intended speed to match.

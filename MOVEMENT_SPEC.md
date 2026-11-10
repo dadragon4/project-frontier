@@ -139,17 +139,22 @@ See `TECHNICAL_ARCHITECTURE.md` → "Movement architecture".
 
 | Ability | Status (2026-11-10) |
 | :-- | :-- |
-| First-person camera with visible body | Written, **not yet run in Studio** |
-| Walk / sprint with acceleration | Written, **not yet run in Studio** |
-| Crouch (with headroom check) | Written, **not yet run in Studio** |
-| Slide (momentum, slope, steering) | Written, **not yet run in Studio** |
-| Air momentum | Written, **not yet run in Studio** |
+| First-person camera with visible body | Runs without errors; first-person lock and FOV change confirmed. Body visibility **not yet looked at** |
+| Walk / sprint with acceleration | **Tested in Studio**: 14 and 24 studs/s reached |
+| Crouch (with headroom check) | **Tested in Studio**: lowers, slows to 8, stays crouched under the tunnel roof, stands after it |
+| Slide (momentum, slope, steering) | **Tested in Studio** on flat ground (starts at 30, ends in crouch). Slope and steering **not yet tested** |
+| Air momentum | Jump and landing tested from standstill; momentum in the air **not yet tested** |
+| Input buffering and coyote jump | Buffered jump **tested in Studio** (pressed in mid-air, fired on landing). Slide-on-landing and coyote jump **not yet tested** |
 | Vault, mantle, ledge grab | Not started (M1.2) |
 | Wall-run, transitions, stamina, weight | Not started (M1.3) |
 
-All numbers in `src/shared/Config/MovementConfig.luau` are untuned first guesses.
+Tests on 2026-11-10 were run by the agent through Studio with simulated key presses, reading the debug readout. Nobody has yet judged how it feels. All numbers in `src/shared/Config/MovementConfig.luau` are untuned first guesses.
 
-Keys: `W A S D` move, `Left Shift` sprint (hold), `Left Ctrl` or `C` crouch (hold; press while sprinting to slide), `Space` jump.
+Keys: `W A S D` move, `Left Shift` sprint (hold), `C`, `Left Ctrl` or (on a Mac) `Left Command` crouch (hold; press while sprinting to slide), `Space` jump.
+
+Jump height is 4.5 studs (lowered from 6 at the user's request, 2026-11-10; Roblox's default is 7.2).
+
+**Known risk with Command as crouch:** macOS treats Command plus a letter as a shortcut. Crouch-walking means holding Command with `W`, `A`, `S` or `D`, and `Command+W` / `Command+Q` normally close the window or quit the app. macOS also often fails to report other keys being released while Command is held, which can leave a movement key "stuck". To be checked in Studio and in the Roblox player before relying on it.
 
 ## Open items specific to movement
 

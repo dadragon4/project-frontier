@@ -1,4 +1,4 @@
--- Turns physical inputs into named actions ("Sprint", "Crouch").
+-- Turns physical inputs into named actions ("Sprint", "Crouch", "Jump").
 --
 -- Movement code only ever asks about actions, never about keys. Adding
 -- gamepad or touch later means adding bindings here (or calling
@@ -6,12 +6,31 @@
 --
 -- The walk direction itself is not handled here: it comes from Roblox's own
 -- control script, which already understands keyboard, thumbstick and touch.
+--
+-- Input buffering: every press is time-stamped. Movement code can ask "was
+-- this pressed within the last X seconds?" instead of "is it pressed on
+-- exactly this frame?". A press that comes slightly too early (for example
+-- jump just before landing) is then still honoured on the first frame it
+-- becomes possible. Once a press has been acted on it is "consumed" so it
+-- cannot trigger twice.
 
 local UserInputService = game:GetService("UserInputService")
 
 local BINDINGS: { [string]: { Enum.KeyCode } } = {
 	Sprint = { Enum.KeyCode.LeftShift },
-	Crouch = { Enum.KeyCode.LeftControl, Enum.KeyCode.C },
+	-- LeftSuper / LeftMeta is the Command key on a Mac (and the Windows key on
+	-- a PC, where Windows itself takes the key press). Scripts cannot ask
+	-- which operating system the player is on, so all of these are bound
+	-- everywhere: Mac players use Command or C, PC players use Ctrl or C.
+	Crouch = {
+		Enum.KeyCode.C,
+		Enum.KeyCode.LeftControl,
+		Enum.KeyCode.LeftSuper,
+		Enum.KeyCode.LeftMeta,
+	},
+	-- Roblox's control script still performs the ordinary jump. We listen to
+	-- the same key only so that early presses can be buffered.
+	Jump = { Enum.KeyCode.Space },
 }
 
 local Input = {}
@@ -20,14 +39,14 @@ local keyToAction: { [Enum.KeyCode]: string } = {}
 local heldKeys: { [Enum.KeyCode]: boolean } = {}
 local virtualHeld: { [string]: boolean } = {}
 local heldCount: { [string]: number } = {}
-local pressedThisFrame: { [string]: boolean } = {}
+local lastPressTime: { [string]: number } = {}
 local started = false
 
 local function press(action: string)
 	local count = (heldCount[action] or 0) + 1
 	heldCount[action] = count
 	if count == 1 then
-		pressedThisFrame[action] = true
+		lastPressTime[action] = os.clock()
 	end
 end
 
@@ -39,7 +58,7 @@ local function releaseEverything()
 	table.clear(heldKeys)
 	table.clear(virtualHeld)
 	table.clear(heldCount)
-	table.clear(pressedThisFrame)
+	table.clear(lastPressTime)
 end
 
 function Input.start()
@@ -54,10 +73,9 @@ function Input.start()
 		end
 	end
 
-	UserInputService.InputBegan:Connect(function(input, gameProcessed)
-		-- gameProcessed is true when Roblox already used the input, for
-		-- example while the player is typing in chat.
-		if gameProcessed then
+	UserInputService.InputBegan:Connect(function(input)
+		-- Ignore keys while the player is typing (chat, text fields).
+		if UserInputService:GetFocusedTextBox() then
 			return
 		end
 		local action = keyToAction[input.KeyCode]
@@ -83,9 +101,16 @@ function Input.isDown(action: string): boolean
 	return (heldCount[action] or 0) > 0
 end
 
--- Did the action go from up to down during this frame?
-function Input.wasPressed(action: string): boolean
-	return pressedThisFrame[action] == true
+-- Was the action pressed within the last `window` seconds, and not yet
+-- consumed?
+function Input.isBuffered(action: string, window: number): boolean
+	local pressedAt = lastPressTime[action]
+	return pressedAt ~= nil and os.clock() - pressedAt <= window
+end
+
+-- Mark the most recent press of this action as used.
+function Input.consume(action: string)
+	lastPressTime[action] = nil
 end
 
 -- For on-screen (touch) buttons: hold or release an action from code.
@@ -97,11 +122,6 @@ function Input.setVirtual(action: string, down: boolean)
 		virtualHeld[action] = nil
 		release(action)
 	end
-end
-
--- Called once at the end of every movement update.
-function Input.endFrame()
-	table.clear(pressedThisFrame)
 end
 
 return Input

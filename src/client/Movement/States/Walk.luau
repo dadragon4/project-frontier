@@ -14,8 +14,8 @@ function Walk.update(ctx, dt: number): string?
 	end
 
 	if ctx.input.isDown("Crouch") then
-		-- Still carrying sprint speed and crouch was just pressed: slide.
-		if ctx.input.wasPressed("Crouch") and ctx:getSpeed() >= config.Slide.MinSpeed then
+		-- Still carrying sprint speed and crouch was pressed a moment ago: slide.
+		if ctx.input.isBuffered("Crouch", config.Buffer.Slide) and ctx:getSpeed() >= config.Slide.MinSpeed then
 			return "Slide"
 		end
 		return "Crouch"

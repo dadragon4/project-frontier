@@ -10,8 +10,8 @@ Status labels are defined in `AGENTS.md`.
 - User answered the M1 questions on 2026-11-10 (see register). Workflow: git with a private GitHub repository, shared with a second developer.
 - Docs are in a private GitHub repository, `dadragon4/project-frontier`. The place file is not in the repository.
 - User ruled on C1–C9, C11 and C12 on 2026-11-10 and approved starting Milestone 1.
-- M1.1 code is written under `src/` but **has not been run**: this session had no Studio connection and no Luau tooling, so it has not even been syntax-checked by a tool.
-- **Next:** install Rojo, sync into Studio, run and fix M1.1, tune with the user; then M1.2.
+- M1.1 runs in Studio. Two startup bugs were found and fixed there (Roblox's control script had moved; a camera setting scripts may not change). See `MOVEMENT_SPEC.md` → Implementation status for exactly what was tested.
+- **Next:** the user plays it and tunes the numbers; test slope slides, coyote jump and the Command key; then M1.2.
 - **Waiting on the user:** C10 and C13 (neither blocks Milestone 1).
 - **Next:** in a new session (so the Studio connection loads), M1.0 setup.
 
@@ -35,18 +35,19 @@ Split into four slices so there is something playable and testable after each. "
 
 ### M1.0 Setup
 - [x] Workflow decided; git and private GitHub repo; Rojo project file.
-- [ ] Install Rojo (and the Studio plugin); first sync.
-- [ ] Greybox movement test course with measured obstacles — written (built by code at server start).
+- [x] Install Rojo 7.7.1 (Homebrew) and its Studio plugin; `rojo build` succeeds.
+- [x] First live sync into Studio.
+- [x] Greybox movement test course with measured obstacles (built by code at server start).
 - [ ] Time-boxed comparison of controller options A and B — not done; M1.1 is built on option A.
 
 ### M1.1 Core locomotion
-- [ ] Input module (actions mapped to keys) — written.
-- [ ] First-person camera — written.
-- [ ] Movement state machine skeleton + configuration module — written.
-- [ ] Walk and sprint with acceleration and deceleration — written.
-- [ ] Crouch — written.
-- [ ] Slide with momentum carry — written.
-- [ ] On-screen debug readout (state, speed) — written.
+- [x] Input module (actions mapped to keys), with input buffering.
+- [ ] First-person camera — runs; visible body not yet checked by eye.
+- [x] Movement state machine skeleton + configuration module.
+- [x] Walk and sprint with acceleration and deceleration.
+- [x] Crouch.
+- [ ] Slide with momentum carry — works on flat ground; slopes and steering untested.
+- [x] On-screen debug readout (state, speed).
 
 ### M1.2 Obstacle traversal — *needs Q4*
 - [ ] Obstacle and ledge detection.
