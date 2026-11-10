@@ -51,7 +51,9 @@ Object categories: decorative / interactable / physics-driven gameplay objects /
 
 **[Established]** Quick-time events have one application: hacking into strongholds that hold substantial loot. Hacking is a high-value, pressured interaction with more depth than a proximity prompt. It may involve timing or sequencing. QTEs are not to be added elsewhere.
 
-**[Conflict C7]** The concept doc adds that hacking is a **skill that levels up with use** — the more a player hacks "strongholds, chests/lootboxes, etc.", the easier and faster hacks become — and has an empty Level / Skill Unlock table. The master prompt does not mention a hacking skill, names strongholds as the one established use, and says the skill system is undefined. Whether chests and lootboxes also use the hacking interaction, and whether the hacking skill is confirmed, needs a decision.
+**[Established — ruling 2026-11-10, settles C7]** Hacking is both a mechanic and a skill. The skill levels up through the player's level **and** through use of hacking together: a player who never hacks never levels it. Higher skill makes hacks easier and faster. The concept doc's Level / Skill Unlock table is still empty.
+
+**[Open]** Whether chests and lootboxes also use the hacking interaction (concept doc) or only strongholds (master prompt).
 
 **[Open] [Q14]** The sequence itself; failure consequences; whether other players can interrupt; whether it makes noise or attracts AI; whether it is real-time; whether a squad defends the hacker.
 
@@ -66,11 +68,9 @@ Object categories: decorative / interactable / physics-driven gameplay objects /
 - Several same-faction squads may rally together against larger threats. Limits and matchmaking: **[Q10]**.
 - Colony Militias are hostile or friendly depending on the player's faction (**[Q26]**).
 
-**Children of Aero [Conflict C5]** — unlockable, not selectable at the start, potentially with their own contracts, objectives, reputation-based access, alternative mission outcomes, storyline and equipment. They need not be playable at launch.
+**Children of Aero [Established — ruling 2026-11-10, settles C5]** — unlocked at **500 rp**. The faction is never shown outright: players discover who the Children of Aero are through exploration, and later gain them through the unlock. Potentially with their own contracts, objectives, alternative mission outcomes, storyline and equipment. They need not be playable at launch.
 
-- Concept doc: reaching **500 rp** unlocks the faction. Reputation comes from collecting artifacts and "naturally leveling up".
-- Master prompt: their presence is something the player gradually uncovers through discovery; no threshold is given.
-- Why it matters: if reputation also comes from plain levelling, a player could unlock the faction without ever encountering it in the world.
+**Aero's operators [Established — ruling 2026-11-10]** — SEVs (officially employed) have more advanced gear and bio-enhancements; Aero's independent contractors have less advanced gear but higher stamina and movement speed. Whether and how this becomes a gameplay choice is to be discussed later (**[Open]**).
 
 ## Progression
 
@@ -90,14 +90,17 @@ Accumulated resources and operator experience are separate measures. A player ca
 
 **[Established]** XP drives player level. Stamina is a skill that improves with level (capacity or efficiency).
 
-**[Open] [Q18]** The full skill system. No large skill tree without approval. Note the two different models currently in the concept doc — stamina improves through XP level, hacking improves through use (**[Conflict C7]**).
+**[Established — 2026-11-10]** Each player's maximum stamina differs by rank, class and faction (to be worked on later). Hacking levels through player level and use together.
 
-### Reputation [Conflict C6]
+**[Open] [Q18]** The full skill system. No large skill tree without approval. Classes and the detailed stamina rules are deferred by the user to a later discussion.
 
-Concept doc, "Reputation/Rank":
+### Reputation [Established — ruling 2026-11-10, settles C6]
 
-- Earned by collecting artifacts and naturally leveling up. Not the same thing as XP. Cannot be bought in the store (the doc marks this with an unexplained asterisk — **[Q19]**).
-- Unlocks cosmetics: decals, stickers, accessories, calling cards, title cards.
+- There is **one overall Reputation**. Separate "faction reputation" is dropped.
+- Earned by collecting specific in-game items — **medallions, artifacts and voice logs** — and by naturally leveling up.
+- Reputation can unlock different contracts within the separate factions.
+- Not the same thing as XP. Cannot be bought in the store (the concept doc marks this with an unexplained asterisk — **[Q19]**).
+- Unlocks cosmetics (decals, stickers, accessories, calling cards, title cards) and, later, the Children of Aero.
 
 | Reputation | Unlock |
 | :-- | :-- |
@@ -105,8 +108,6 @@ Concept doc, "Reputation/Rank":
 | 100 rp | Title Card |
 | 500 rp | Children of Aero — faction |
 | *(further rows not yet written)* | |
-
-Both sources also describe **faction reputation** that unlocks contracts, rewards, narrative content and faction-specific opportunities. Whether reputation is one global track, one track per faction, or both, is undecided.
 
 ### Cosmetics [Established]
 

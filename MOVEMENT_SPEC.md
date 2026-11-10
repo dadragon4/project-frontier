@@ -85,11 +85,9 @@ User decisions, 2026-11-10 **[Established]**:
 - At zero stamina, movement is **moderately inhibited** — reduced, not disabled.
 - Manual clambering gives a stamina boost (see "Clambering mode").
 
-- "Moderately inhibited", in the user's words: "slowed down aggressively but still leaving 20% of player's max stamina."
+- The "20%" figure is a **weight** rule, not a zero-stamina rule: see "The 20% rule" under Weight.
 
-**[Proposed reading — needs confirming]** The last 20% of stamina is a reserve. When stamina drains down to that mark the player is slowed heavily, but the reserve means parkour never becomes impossible. Other readings are possible (for example, a speed penalty that begins below 20%).
-
-**[Open] [Q5]** Which actions cost stamina; whether plain sprinting costs any; how stamina recovers; how "momentum" is measured for the discount and for the "chance for increased momentum".
+**[Open] [Q5]** What "moderately inhibited" at zero stamina means concretely; which actions cost stamina; whether plain sprinting costs any; how stamina recovers; how "momentum" is measured for the discount and for the "chance for increased momentum".
 
 ## Weight [Established]
 
@@ -109,8 +107,7 @@ Concept-doc tiers:
 
 - Concept doc: acceleration, slide distance, stamina consumption, climbing performance. Sprint is described as "responsive acceleration influenced by carried weight".
 - Master prompt: acceleration, movement efficiency, sliding, traversal performance; under Sprint, "movement **speed** influenced by weight"; and "the exact weight thresholds, penalties, and interaction with stamina are not finalized".
-- **Partly resolved 2026-11-10:** weight does raise stamina drain, slightly.
-- Still to decide: does weight lower **top speed**, or only acceleration?
+- **Resolved 2026-11-10:** weight raises stamina drain slightly, and weight lowers top speed.
 
 ### Weight model [Established — user decision 2026-11-10]
 
@@ -119,12 +116,16 @@ Concept-doc tiers:
   - slower acceleration when sprinting,
   - lower stamina regeneration,
   - less chance for increased momentum.
-- Top speed is not among the listed effects, so the prototype will leave top speed unchanged by weight (agent's reading; say if that is wrong).
+- **Weight also lowers top speed** (user ruling 2026-11-10, settles C8).
 - Earlier the same day: a heavy scavenged load also drains stamina a little faster.
 
-**[Conflict C12]** Does the deployed loadout count? The concept doc and master prompt say the loadout a player deploys with does **not** count toward weight. The new description gives weight values to "equipment (weapons, special grenades, grenades)", which are typically loadout items. Either only picked-up equipment counts (consistent with before), or the loadout now counts too.
+**[Established — ruling 2026-11-10, settles C12]** The loadout a player deploys with carries weight values, but they have **no effect on that player**. Weight activates when equipment changes hands: if Player B downs (kills) Player A and takes their equipment, Player B feels its weight.
 
-**[Open] [Q6]** The threshold value(s) — one threshold or several (the concept doc's Light / Medium / Heavy); penalty sizes; whether non-equipment items (resources, quest items) also have weight.
+**[Established — ruling 2026-11-10] The 20% rule.** There is a maximum weight a player is allowed to carry. As a player approaches it, their stamina is **limited to 20% of their maximum stamina**. Maximum stamina differs per player by rank, class and faction (to be worked on later).
+
+So there are two weight levels: the inhibition threshold (slower sprint acceleration, lower stamina regeneration, less chance for increased momentum) and, above it, the approach to maximum carry weight (stamina capped at 20%).
+
+**[Open] [Q6]** The threshold and maximum values; what "approaching" means as a number; penalty sizes; whether non-equipment items (resources, quest items) also have weight; whether anything can be picked up beyond the maximum.
 
 ## Dependencies on other systems
 
@@ -132,7 +133,23 @@ For the prototype, weight is a test value set by hand; the real number will late
 
 ## Technical approach
 
-See `TECHNICAL_ARCHITECTURE.md` → "Movement architecture". Everything there is **[Proposed]**.
+See `TECHNICAL_ARCHITECTURE.md` → "Movement architecture".
+
+## Implementation status
+
+| Ability | Status (2026-11-10) |
+| :-- | :-- |
+| First-person camera with visible body | Written, **not yet run in Studio** |
+| Walk / sprint with acceleration | Written, **not yet run in Studio** |
+| Crouch (with headroom check) | Written, **not yet run in Studio** |
+| Slide (momentum, slope, steering) | Written, **not yet run in Studio** |
+| Air momentum | Written, **not yet run in Studio** |
+| Vault, mantle, ledge grab | Not started (M1.2) |
+| Wall-run, transitions, stamina, weight | Not started (M1.3) |
+
+All numbers in `src/shared/Config/MovementConfig.luau` are untuned first guesses.
+
+Keys: `W A S D` move, `Left Shift` sprint (hold), `Left Ctrl` or `C` crouch (hold; press while sprinting to slide), `Space` jump.
 
 ## Open items specific to movement
 
@@ -142,7 +159,7 @@ See `TECHNICAL_ARCHITECTURE.md` → "Movement architecture". Everything there is
 | Q3 | **Decided:** a custom rig with a visible body. Players see their own hands when carrying no weapon. Still open: who builds the rig, and what stands in for it during the prototype. |
 | Q4 | Mostly decided (see "Clambering mode"); details open. |
 | Q5 | Partly decided (see "Stamina and momentum"); details open. |
-| Q6 / C8 | Mostly decided (see "Weight model"): threshold-based. Open: threshold values, and C12 (does the loadout count). |
+| Q6 / C8 | Mostly decided (see "Weight model"): threshold-based. Loadout does not count for its owner; weight lowers top speed. Open: threshold and maximum values. |
 | Q7 | **Decided:** placeholder animations are fine for now. |
 
 ## Character and input [Established — user decision 2026-11-10]

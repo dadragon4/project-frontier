@@ -12,7 +12,28 @@ Update, same day: a place file `Project Frontier.rbxl` now sits in the folder (n
 
 **[Proposed] Two-developer workflow.** Code lives as files in git and is synced into Studio with Rojo, so both developers can review and merge each other's scripts. A place file is a single binary that git cannot merge, so the world itself (maps, models, the rig) is better shared through Roblox's Team Create, where both developers edit the same published place.
 
-Because nothing exists, everything below about structure and implementation is a starting recommendation, not a description of real code. It will be replaced by facts as code is written.
+**Decided by the user, 2026-11-10:** the place is shared with the second developer through Roblox; the code is shared through the GitHub repo. The `.rbxl` file is therefore kept out of git.
+
+### What exists in code now (written, not yet run)
+
+```text
+default.project.json                 Rojo mapping (below)
+src/shared/Config/MovementConfig     every movement tuning number
+src/shared/Config/DevConfig          test-course and debug switches
+src/client/Main.client               starts everything when the character spawns
+src/client/Input                     actions ("Sprint", "Crouch") mapped to keys
+src/client/Camera/FirstPersonCamera  first-person lock, visible body, FOV and tilt
+src/client/Movement/MovementController   owns speed/direction, runs the current state
+src/client/Movement/States/*         Walk, Sprint, Crouch, Slide, Air
+src/client/Movement/DebugReadout     on-screen state and speed
+src/server/TestCourse.server         builds the greybox course at server start
+```
+
+Rojo maps these into three folders it owns and touches nothing else in the place: `ReplicatedStorage.Shared`, `ServerScriptService.Server`, `StarterPlayer.StarterPlayerScripts.Client`.
+
+How M1.1 works, briefly: Roblox's own control script still reads the keyboard (and later the thumbstick), and we ask it for the direction the player wants to go. Each frame our controller works out a velocity from that direction using our own acceleration rules, then tells the Humanoid to walk in that direction at that speed. Crouching lowers the Humanoid's hip height; sliding is a state that locks direction and bleeds speed off through friction.
+
+Because nothing existed at review time, everything below about structure and implementation is a starting recommendation, not a description of real code. It will be replaced by facts as code is written.
 
 ## Principles [Established]
 

@@ -45,11 +45,13 @@ Recover loot; collect intelligence; complete dynamic contracts and special story
 - Recoverable items include resources, intelligence, equipment, weapons and artifacts. Scarce resources are concentrated in strongholds, abandoned facilities and contested installations.
 - The concept doc lists **limited inventory capacity**.
 
-**[Established — user decision 2026-11-10]** The inventory is **slot-based**: it holds the deployed loadout plus extra empty slots, which players fill with quest items, resources, blueprints, other weapons and so on. Equipment has assigned weight values, and crossing a weight threshold inhibits movement (`MOVEMENT_SPEC.md`). Whether the loadout itself counts toward weight is **[Conflict C12]**.
+**[Established — user decision 2026-11-10]** The inventory is **slot-based**: it holds the deployed loadout plus extra empty slots, which players fill with quest items, resources, blueprints, other weapons and so on. Equipment has assigned weight values, and crossing a weight threshold inhibits movement (`MOVEMENT_SPEC.md`).
+
+**[Established — ruling 2026-11-10, settles C12]** A player's own deployed loadout has weight values but they have no effect on that player. If Player B downs (kills) Player A and takes their equipment, those weight values activate and count against Player B. There is a maximum weight a player is allowed to carry; approaching it limits stamina to 20% of the player's maximum.
 
 **[Open] [Q13]** Number of extra slots; item list and weight values; loot spawning rules. Blueprints are named here as something picked up — how that fits with "recovering multiple examples of a weapon unlocks its blueprint" needs confirming (**[Q15]**).
 
-## Extraction mechanics [Conflict C9]
+## Extraction mechanics
 
 The concept doc lists these as the extraction mechanics:
 
@@ -61,7 +63,13 @@ The concept doc lists these as the extraction mechanics:
 - Risk of losing carried equipment and loot on death.
 - Successful extraction contributes to long-term progression.
 
-The master prompt calls multiple extraction points and conditional extraction "potential design directions" and says the exact mechanics "remain subject to further design". The last three bullets are established in both sources; the status of the first three (direction vs decision) needs confirming, and all details are **[Open] [Q11]**.
+**[Established — ruling 2026-11-10, settles C9]** The extraction type depends on the map (planet). At exfil a map uses one of:
+
+- **several different locations** to exfiltrate from;
+- a **faction-dependent activation sequence** and exfiltration;
+- a **temporary / conditional extraction**, prompted by time running out or by all quest items being collected.
+
+**[Open] [Q11]** The details of each type.
 
 ## Death [Established]
 

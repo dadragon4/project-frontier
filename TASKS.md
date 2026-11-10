@@ -9,7 +9,10 @@ Status labels are defined in `AGENTS.md`.
 - The Roblox Studio MCP server is registered for this folder; it loads in new sessions.
 - User answered the M1 questions on 2026-11-10 (see register). Workflow: git with a private GitHub repository, shared with a second developer.
 - Docs are in a private GitHub repository, `dadragon4/project-frontier`. The place file is not in the repository.
-- **Waiting on the user:** C12; the 20% stamina reading; how the second developer will share the place file (Q1).
+- User ruled on C1–C9, C11 and C12 on 2026-11-10 and approved starting Milestone 1.
+- M1.1 code is written under `src/` but **has not been run**: this session had no Studio connection and no Luau tooling, so it has not even been syntax-checked by a tool.
+- **Next:** install Rojo, sync into Studio, run and fix M1.1, tune with the user; then M1.2.
+- **Waiting on the user:** C10 and C13 (neither blocks Milestone 1).
 - **Next:** in a new session (so the Studio connection loads), M1.0 setup.
 
 Still to write, when their phase approaches: `COMBAT_SPEC.md`, `WORLD_DESIGN.md`, `UI_AUDIO_GUIDE.md`, `ASSET_GUIDE.md`.
@@ -26,23 +29,24 @@ Still to write, when their phase approaches: `COMBAT_SPEC.md`, `WORLD_DESIGN.md`
 | 6 | Faction and social systems | Hubs, hideouts, squads, factions, reputation, contracts |
 | 7 | World and narrative expansion | More maps, lore, enemies, seasonal story |
 
-## Milestone 1 — Movement prototype [Proposed — awaiting approval]
+## Milestone 1 — Movement prototype [Approved by the user 2026-11-10]
 
-Split into four slices so there is something playable and testable after each.
+Split into four slices so there is something playable and testable after each. "Written" means the code exists; a box is only ticked once it has been run and checked in Studio.
 
 ### M1.0 Setup
-- [ ] Decide workflow (**Q1**); install tools; `git init`; minimal Rojo project.
-- [ ] Greybox movement test course with measured obstacles.
-- [ ] Time-boxed comparison of controller options A and B (`TECHNICAL_ARCHITECTURE.md`); record the choice.
+- [x] Workflow decided; git and private GitHub repo; Rojo project file.
+- [ ] Install Rojo (and the Studio plugin); first sync.
+- [ ] Greybox movement test course with measured obstacles — written (built by code at server start).
+- [ ] Time-boxed comparison of controller options A and B — not done; M1.1 is built on option A.
 
-### M1.1 Core locomotion — *needs Q2, Q3*
-- [ ] Input module (actions mapped to keys).
-- [ ] First-person camera.
-- [ ] Movement state machine skeleton + configuration module.
-- [ ] Walk and sprint with acceleration and deceleration.
-- [ ] Crouch.
-- [ ] Slide with momentum carry.
-- [ ] On-screen debug readout (state, speed, stamina, weight).
+### M1.1 Core locomotion
+- [ ] Input module (actions mapped to keys) — written.
+- [ ] First-person camera — written.
+- [ ] Movement state machine skeleton + configuration module — written.
+- [ ] Walk and sprint with acceleration and deceleration — written.
+- [ ] Crouch — written.
+- [ ] Slide with momentum carry — written.
+- [ ] On-screen debug readout (state, speed) — written.
 
 ### M1.2 Obstacle traversal — *needs Q4*
 - [ ] Obstacle and ledge detection.
@@ -66,7 +70,33 @@ Out of scope for M1: inventory, factions, weapons, AI, persistence, UI beyond th
 
 ## Decision register
 
-### Conflicts between sources — need the user's ruling
+### Rulings by the user, 2026-11-10
+
+| ID | Ruling | Recorded in |
+| :-- | :-- | :-- |
+| C1 | Frontier is the R&D project's name, later also given to the special corp that receives the bio-enhancements. The SGA also has a normal military. | `LORE_BIBLE.md` |
+| C2 | The Frontier Corp followed the aftermath of the shuttle attack, enforcing SGA galactic law. Aero and the Children of Aero formed hundreds of years later. | `LORE_BIBLE.md` |
+| C3 | The corrupt successor is Lorenz's nephew (unnamed), installed by Lorenz's brother after overthrowing Lorenz. Enzo Hart is Lorenz's child. | `LORE_BIBLE.md` |
+| C4 | Enzo was raised in exile by Lorenz and founded the Children of Aero to regain what was his father's and bring good, peace and trust. | `LORE_BIBLE.md` |
+| C5 | Children of Aero unlock at 500 rp; never shown outright; discovered through exploration first. | `GAMEPLAY.md` |
+| C6 | One overall Reputation, earned from medallions, artifacts and voice logs. Faction reputation dropped. | `GAMEPLAY.md` |
+| C7 | Hacking is a mechanic and a skill, levelling with player level and use together. | `GAMEPLAY.md` |
+| C9 | Extraction type depends on the map: several locations, faction-dependent activation, or temporary/conditional. | `EXTRACTION_SPEC.md` |
+| C11 | SEVs are officially employed with advanced gear and bio-enhancements; independent contractors have lesser gear but higher stamina and speed. | `LORE_BIBLE.md` |
+| C12 | A player's own loadout does not weigh on them; equipment taken from a downed player does. Approaching maximum carry weight caps stamina at 20%. | `MOVEMENT_SPEC.md` |
+
+### Still open
+
+| ID | Topic |
+| :-- | :-- |
+| C10 | "Struggle for control and hope" (concept doc) or "controlled hope" (master prompt)? Wording only. |
+| C13 | Timeline order: the attack is centuries before Aero, yet blame for it brings down Lorenz; and where the Frontier project sits relative to the attack. See `LORE_BIBLE.md`. |
+
+Also ruled 2026-11-10: weight lowers top speed (C8); reputation is also earned by naturally leveling up and can unlock different contracts within the separate factions; the place file is shared with the second developer through Roblox, the code through the GitHub repo (Q1).
+
+Deferred by the user: classes; detailed stamina rules (including what zero stamina does). Still unasked: whether chests and lootboxes are hacked.
+
+### Original conflict record (for history)
 
 | ID | Topic | Concept doc | Master prompt | Blocks |
 | :-- | :-- | :-- | :-- | :-- |
