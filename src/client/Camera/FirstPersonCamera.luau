@@ -2,7 +2,8 @@
 -- player's own body visible, and adds the camera movements that make motion
 -- feel physical:
 --   - field of view widens with speed;
---   - head bob while running, scaled by speed;
+--   - head bob while running (up and down, plus a side-to-side sway),
+--     scaled by speed;
 --   - a dip on landing, deeper for bigger falls;
 --   - a slight lean when strafing, a tilt while sliding, and a stronger tilt
 --     away from the wall while wall-running;
@@ -44,7 +45,7 @@ function FirstPersonCamera.new(controller)
 	self.applied = CFrame.identity -- the effect we added last frame
 	self.tilt = 0
 	self.bobPhase = 0
-	self.bobAmount = 0
+	self.bobWeight = 0 -- 0 = no bob, 1 = full bob at sprint speed
 	self.lastLandingSeen = controller.landedAt
 	self.dipDepth = 0
 	self.dipStartedAt = -math.huge
@@ -153,14 +154,16 @@ function FirstPersonCamera:_update(dt: number)
 	self.tilt += (targetTilt * motion - self.tilt) * blend(cameraConfig.RollRate, dt)
 
 	-- Head bob, driven by distance travelled so it matches footsteps.
+	-- The up-and-down bob repeats every step; the sideways sway is half as
+	-- fast, so the head moves over to the left foot, then the right.
 	local targetBob = 0
 	if BOB_STATES[state] and controller.grounded and speed > 1 then
 		self.bobPhase += speed * dt * feel.BobFrequency
-		targetBob = feel.BobAmount * math.clamp(speed / Config.SprintSpeed, 0, 1)
+		targetBob = math.clamp(speed / Config.SprintSpeed, 0, 1)
 	end
-	self.bobAmount += (targetBob * motion - self.bobAmount) * blend(10, dt)
-	local bobY = math.sin(self.bobPhase * 2) * self.bobAmount
-	local bobX = math.sin(self.bobPhase) * self.bobAmount * 0.5
+	self.bobWeight += (targetBob * motion - self.bobWeight) * blend(10, dt)
+	local bobY = math.sin(self.bobPhase * 2) * self.bobWeight * feel.BobAmount
+	local bobX = math.sin(self.bobPhase) * self.bobWeight * feel.SideBobAmount
 
 	-- Landing dip (not after a roll, which has its own camera movement).
 	if controller.landedAt ~= self.lastLandingSeen then

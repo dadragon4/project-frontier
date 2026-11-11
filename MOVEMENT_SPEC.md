@@ -108,7 +108,7 @@ Jumping out of a slide keeps a little of the speed, and then acceleration picks 
 
 Movement should feel physical, with a settings option to reduce camera motion.
 
-**[Proposed]** as built: head bob scaled with speed; a landing dip that grows with fall height (none after a roll); a slight lean when strafing; a 10° tilt away from the wall while wall-running; small downward looks during mantles and vaults. **Reduce camera motion** removes the bob, lean, tilts and the roll/mantle/vault camera movements, and shrinks the landing dip (35%) and speed field-of-view change (50%). Settings open with `P` and are **not saved** between sessions yet (that belongs to Phase 5).
+**[Proposed]** as built: head bob scaled with speed, up and down each step plus a side-to-side sway (`SideBobAmount`); a landing dip that grows with fall height (none after a roll); a slight lean when strafing; a 10° tilt away from the wall while wall-running; small downward looks during mantles and vaults. **Reduce camera motion** removes the bob, lean, tilts and the roll/mantle/vault camera movements, and shrinks the landing dip (35%) and speed field-of-view change (50%). Settings open with `P` and are **not saved** between sessions yet (that belongs to Phase 5).
 
 ## Stamina and momentum [Established]
 
