@@ -1,8 +1,8 @@
 -- Roll. Two ways in (see MovementConfig.Roll):
---   air roll:    on landing from a big enough fall, if crouch was pressed
---                while airborne (decided in Air);
---   ground roll: crouch double-tapped while on the ground (decided in
---                MovementController).
+--   air roll:    on landing from a big enough fall, if the roll key was
+--                pressed while airborne (decided in Air);
+--   ground roll: the roll key pressed while moving on the ground (decided
+--                in MovementController).
 --
 -- The character stays low, rolls forward (at least Roll.MinSpeed), and the
 -- camera turns over once. When the roll finishes, the next state depends on
@@ -18,8 +18,7 @@ end
 function Roll.enter(ctx, previous: string)
 	local roll = ctx.config.Roll
 	ctx.crouched = true
-	ctx.input.consume("Crouch")
-	ctx.input.consumeDoubleTap("Crouch")
+	ctx.input.consume("Roll")
 
 	-- Air roll: keep going the way we were travelling.
 	-- Ground roll: go where the player is pushing, else the way we were
@@ -60,9 +59,6 @@ function Roll.update(ctx, dt: number): string?
 	ctx.cameraPitch = -math.rad(roll.CameraSpin) * smoothstep(progress)
 
 	if progress >= 1 then
-		if ctx.input.isDown("Crouch") then
-			return "Crouch"
-		end
 		if ctx:wantsSprint() then
 			return "Sprint"
 		end

@@ -1,9 +1,14 @@
 -- Sliding: direction is mostly locked, speed bleeds off through friction,
 -- and slopes add or remove speed. Jumping out of a slide keeps the speed
 -- (the Air state takes over as soon as the character leaves the ground).
+--
+-- Started by tapping crouch while sprinting; the key does not need to be
+-- held. On flat ground it ends, crouched, when the speed runs out. Down a
+-- slope there is no friction and it carries on until the slope levels out.
+-- Pressing crouch again ends it early (into a crouch); so does jumping.
 
 local Slide = {
-	allowsGroundRoll = true, -- double-tapping crouch here starts a roll
+	allowsGroundRoll = true, -- the roll key rolls from here
 	allowsClamber = true, -- vault / mantle can start from here
 }
 
@@ -53,30 +58,32 @@ function Slide.update(ctx, dt: number): string?
 		end
 	end
 
-	-- Friction always slows the slide.
-	speed -= slide.Friction * dt
-
 	-- Slopes: the floor normal leans toward downhill. Sliding downhill adds
 	-- speed, sliding uphill removes it, in proportion to steepness.
+	-- `slope` is 0 on flat ground, positive heading downhill, negative uphill
+	-- (it is the sine of the slope's angle along our direction).
 	local normal = ctx:getFloorNormal()
-	local downhill = Vector3.new(normal.X, 0, normal.Z)
-	local steepness = downhill.Magnitude -- 0 on flat ground
-	if steepness > 0.01 then
-		speed += direction:Dot(downhill / steepness) * steepness * slide.SlopeAccel * dt
+	local slope = direction:Dot(Vector3.new(normal.X, 0, normal.Z))
+	local onDownSlope = slope >= math.sin(math.rad(slide.SlopeMinAngle))
+	speed += slope * slide.SlopeAccel * dt
+
+	-- Friction slows the slide, except while heading down a slope.
+	if not onDownSlope then
+		speed -= slide.Friction * dt
 	end
 
 	speed = math.clamp(speed, 0, slide.MaxSpeed)
 	ctx.velocity = direction * speed
 
-	local held = ctx.input.isDown("Crouch")
-
-	if speed < slide.EndSpeed then
-		return if held then "Crouch" else "Walk"
+	-- Out of speed: the slide ends in a crouch. (Not on a downward slope,
+	-- where it keeps going until the slope levels out.)
+	if speed < slide.EndSpeed and not onDownSlope then
+		return "Crouch"
 	end
 
-	-- Letting go of crouch ends the slide early.
-	if not held and ctx.stateTime >= slide.MinTime then
-		return if ctx:wantsSprint() then "Sprint" else "Walk"
+	-- Pressing crouch again ends the slide early.
+	if ctx.stateTime >= slide.MinTime and ctx.input.isBuffered("Crouch", ctx.config.Buffer.Slide) then
+		return "Crouch"
 	end
 
 	return nil

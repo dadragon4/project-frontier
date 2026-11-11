@@ -13,17 +13,22 @@
 -- jump just before landing) is then still honoured on the first frame it
 -- becomes possible. Once a press has been acted on it is "consumed" so it
 -- cannot trigger twice.
+--
+-- Tap and hold: one key can mean two things. A "tap" is a press that was
+-- let go again quickly; a "hold" is a press kept down. A tap is only known
+-- once the key comes back up, so tap actions fire on release.
 
 local UserInputService = game:GetService("UserInputService")
 
 local BINDINGS: { [string]: { Enum.KeyCode } } = {
 	Sprint = { Enum.KeyCode.LeftShift },
+	-- Tap: crouch / slide / stand up. Hold: prone / dive.
+	Crouch = { Enum.KeyCode.C },
 	-- LeftSuper / LeftMeta is the Command key on a Mac (and the Windows key on
 	-- a PC, where Windows itself takes the key press). Scripts cannot ask
 	-- which operating system the player is on, so all of these are bound
-	-- everywhere: Mac players use Command or C, PC players use Ctrl or C.
-	Crouch = {
-		Enum.KeyCode.C,
+	-- everywhere: Mac players roll with Command or Ctrl, PC players with Ctrl.
+	Roll = {
 		Enum.KeyCode.LeftControl,
 		Enum.KeyCode.LeftSuper,
 		Enum.KeyCode.LeftMeta,
@@ -43,12 +48,10 @@ local heldKeys: { [Enum.KeyCode]: boolean } = {}
 local virtualHeld: { [string]: boolean } = {}
 local heldCount: { [string]: number } = {}
 local lastPressTime: { [string]: number } = {} -- cleared when a press is consumed
--- Raw press history for double-tap detection. Not affected by consume(),
--- because the first tap of a double-tap is often used by something else
--- (for example it starts a slide).
-local rawLastPress: { [string]: number } = {}
-local rawPrevPress: { [string]: number } = {}
-local doubleTapUsed: { [string]: number } = {}
+local rawLastPress: { [string]: number } = {} -- like lastPressTime, but not cleared by consume()
+local downSince: { [string]: number } = {} -- when the current hold began; nil once it is consumed or released
+local lastTapTime: { [string]: number } = {} -- when the last tap was let go; cleared when consumed
+local lastTapHeld: { [string]: number } = {} -- how long that tap was held down
 local started = false
 
 local pressedEvent = Instance.new("BindableEvent")
@@ -62,14 +65,22 @@ local function press(action: string)
 	if count == 1 then
 		local now = os.clock()
 		lastPressTime[action] = now
-		rawPrevPress[action] = rawLastPress[action]
 		rawLastPress[action] = now
+		downSince[action] = now
 		pressedEvent:Fire(action)
 	end
 end
 
 local function release(action: string)
-	heldCount[action] = math.max((heldCount[action] or 0) - 1, 0)
+	local count = math.max((heldCount[action] or 0) - 1, 0)
+	heldCount[action] = count
+	-- A press that was already acted on (consumed) does not also count as a tap.
+	if count == 0 and downSince[action] then
+		local now = os.clock()
+		lastTapTime[action] = now
+		lastTapHeld[action] = now - downSince[action]
+		downSince[action] = nil
+	end
 end
 
 local function releaseEverything()
@@ -78,7 +89,8 @@ local function releaseEverything()
 	table.clear(heldCount)
 	table.clear(lastPressTime)
 	table.clear(rawLastPress)
-	table.clear(rawPrevPress)
+	table.clear(downSince)
+	table.clear(lastTapTime)
 end
 
 function Input.start()
@@ -135,16 +147,18 @@ function Input.pressedSince(action: string, since: number): boolean
 	return pressedAt ~= nil and pressedAt >= since
 end
 
--- Was the action pressed twice in quick succession: the second press within
--- `window` seconds of the first, and the second press within the last
--- `recent` seconds? Each double-tap only counts once (see consumeDoubleTap).
-function Input.doubleTapped(action: string, window: number, recent: number): boolean
-	local last = rawLastPress[action]
-	local prev = rawPrevPress[action]
-	if last == nil or prev == nil or doubleTapUsed[action] == last then
-		return false
-	end
-	return last - prev <= window and os.clock() - last <= recent
+-- Was the action tapped: held for no longer than `maxHold` seconds, let go
+-- within the last `window` seconds, and not yet consumed?
+function Input.tapped(action: string, maxHold: number, window: number): boolean
+	local tappedAt = lastTapTime[action]
+	return tappedAt ~= nil and lastTapHeld[action] <= maxHold and os.clock() - tappedAt <= window
+end
+
+-- How many seconds the action has been held down. 0 if it is not down, or
+-- if this press has already been consumed.
+function Input.heldFor(action: string): number
+	local since = downSince[action]
+	return if since then os.clock() - since else 0
 end
 
 -- Was the action pressed within the last `window` seconds, whether or not
@@ -154,13 +168,12 @@ function Input.recentlyPressed(action: string, window: number): boolean
 	return last ~= nil and os.clock() - last <= window
 end
 
-function Input.consumeDoubleTap(action: string)
-	doubleTapUsed[action] = rawLastPress[action]
-end
-
--- Mark the most recent press of this action as used.
+-- Mark the most recent press of this action as used, whether it was a
+-- press, a tap or a hold that is still going.
 function Input.consume(action: string)
 	lastPressTime[action] = nil
+	lastTapTime[action] = nil
+	downSince[action] = nil
 end
 
 -- For on-screen (touch) buttons: hold or release an action from code.

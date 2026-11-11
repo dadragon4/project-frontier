@@ -18,7 +18,7 @@ src/client/UI/SettingsPanel          settings window on P
 src/client/Camera/FirstPersonCamera  first-person view and all camera feel effects
 src/client/Movement/MovementController   per-frame loop: input, ground, jump, speed rules, runs the current state
 src/client/Movement/Detection        raycast checks: obstacles to vault/mantle/hang from, wall-run walls, room to stand
-src/client/Movement/States/*         one file per state: Walk, Sprint, Crouch, Slide, Air, Roll, Mantle, Vault, LedgeHang, WallRun
+src/client/Movement/States/*         one file per state: Walk, Sprint, Crouch, Slide, Air, Roll, Mantle, Vault, LedgeHang, WallRun, Prone, Dive
 src/client/Movement/DebugReadout     on-screen state and speed
 src/client/Dev/MovementTests         scripted movement checks on the test course
 src/server/TestCourse.server         builds the greybox course at server start

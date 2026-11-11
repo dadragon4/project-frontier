@@ -12,7 +12,7 @@ return {
 	-- Ground speeds
 	WalkSpeed = 16,
 	SprintSpeed = 25,
-	CrouchSpeed = 7,
+	CrouchSpeed = 9,
 
 	-- How quickly speed changes on the ground
 	GroundAccel = 100, -- from standing still up to walk speed
@@ -28,20 +28,39 @@ return {
 	-- feeling slippery.
 	TurnFriction = 80,
 
-	-- Sprint only engages while moving mostly forward. 1 = exactly forward,
-	-- 0 = sideways allowed.
-	SprintForwardDot = 0.3,
+	-- How hard the character brakes when the player pushes AGAINST the way
+	-- they are moving (left while moving right, back while moving forward):
+	-- a reversal, or "counter-strafe". Studs/second^2. Higher = the
+	-- character stops and comes back sooner; too high feels abrupt and
+	-- robotic. Lower = more drag before it turns round. Keep it above
+	-- GroundDecel, so pressing the opposite key stops you faster than
+	-- letting go does. TurnFriction (above) is the other half: it handles
+	-- sideways leftovers when turning a corner.
+	ReverseDecel = 140,
+
+	-- Moving sideways or backwards is slower than moving straight ahead, in
+	-- every ground state (walk, sprint, crouch, prone). These are the share
+	-- of the state's top speed you get; directions in between are blended.
+	StrafeSpeedScale = 0.85, -- flat sideways
+	BackSpeedScale = 0.6, -- straight back
 
 	-- Air
 	AirAccel = 20, -- steering strength while airborne (speed itself is kept)
-	JumpHeight = 3.25, -- Roblox's default is 7.2
+	JumpHeight = 5, -- Roblox's default is 7.2
 	CoyoteTime = 0.12, -- how long after leaving the ground we still count as grounded (and may still jump)
+	JumpCooldown = 0.5, -- seconds after landing from a jump before you can jump again (0 = straight away; wall jumps are not affected)
 
 	-- Input buffering: how long an early press is remembered.
 	Buffer = {
 		Jump = 0.15,
-		Slide = 0.15,
+		Slide = 0.15, -- a crouch tap made just before it can be used (for example just before landing)
+		Roll = 0.15,
 	},
+
+	-- The crouch key does two jobs. Let go within this time and it is a tap
+	-- (crouch, slide, stand up); keep it down this long and it is a hold
+	-- (prone, dive).
+	CrouchHoldTime = 0.25,
 
 	-- If our intended speed exceeds the real speed by more than this, we assume
 	-- the character hit something and drop the intended speed to match.
@@ -50,7 +69,10 @@ return {
 	Crouch = {
 		Drop = 1.2, -- how far the body lowers
 		MinHipHeight = 0.3, -- never lower the hips closer to the ground than this
-		TransitionRate = 8, -- 1 / seconds to go fully down or up
+		-- Studs per second the body moves down or up. (This used to be
+		-- "1 / seconds for the whole move", with the value 8; 10 studs per
+		-- second over the 1.2 stud drop is the same speed.)
+		TransitionRate = 10,
 		StandingHeadHeight = 2.6, -- top of head above the root part's centre when standing
 		HeadroomRadius = 0.8, -- width of the "can I stand up here?" probe
 	},
@@ -65,6 +87,27 @@ return {
 		EndSpeed = 10, -- slide ends (into crouch or walk) when speed falls below this
 		MinTime = 0.25, -- cannot cancel a slide before this
 		SteerRate = 1.2, -- how fast the slide direction can turn, radians per second
+		-- Sliding down a slope at least this steep (degrees) has no friction
+		-- and does not end until the slope levels out.
+		SlopeMinAngle = 5,
+	},
+
+	-- Prone: lying down. The body is lowered as far as the rig allows; it is
+	-- not laid flat yet (that waits for the custom rig and animations).
+	Prone = {
+		Drop = 1.75, -- how far the body lowers. This is at the MinHipHeight limit for an R15 rig; do not raise it without checking the feet.
+		Speed = 3, -- crawl speed
+		Accel = 20,
+		MinTime = 0.35, -- cannot get up before this
+		TransitionRate = 3, -- studs per second the body lowers into, or rises out of, prone
+	},
+
+	-- Dive: a forward leap that lands prone. Hold crouch while sprinting.
+	Dive = {
+		MinSpeed = 18, -- must be moving at least this fast
+		Boost = 4, -- speed added at the start
+		MaxSpeed = 30, -- the boost never takes you above this
+		Height = 2.5, -- how high the leap rises
 	},
 
 	-- Slide-hop: jumping out of a slide adds a little speed. Combined with
@@ -75,13 +118,13 @@ return {
 		Cooldown = 1.0, -- seconds between boosted hops
 	},
 
-	-- Roll. Two ways in:
-	--   air roll:    crouch pressed while airborne, and the fall (highest
+	-- Roll (Ctrl, or Command on a Mac). Two ways in:
+	--   air roll:    roll pressed while airborne, and the fall (highest
 	--                point to landing) was at least MinFallHeight;
-	--   ground roll: crouch pressed twice quickly while on the ground.
+	--   ground roll: roll pressed while walking, sprinting or sliding (not
+	--                while standing still).
 	Roll = {
 		MinFallHeight = 6,
-		DoubleTapWindow = 0.3, -- max seconds between the two crouch presses
 		Duration = 0.55,
 		MinSpeed = 10, -- a roll always carries you forward at least this fast
 		MaxSpeed = 24, -- landing faster than this is trimmed to this
@@ -172,6 +215,8 @@ return {
 		BobAmount = 0.20, -- head bob height at sprint speed
 		BobFrequency = 0.45, -- bob cycles per stud travelled (scaled)
 		SideBobAmount = 0.10, -- side-to-side sway at sprint speed (one sway left and right per two steps)
+		StrafeBobAdd = 0.14, -- extra side-to-side sway (studs) when moving flat sideways
+		StrafeBobTrade = 0.5, -- share of the up-and-down bob removed when moving flat sideways
 		StrafeLean = 1.5, -- tilt when moving sideways
 		WallRunTilt = 10, -- tilt away from the wall while wall-running
 		DipMinFall = 1.5, -- falls shorter than this give no landing dip

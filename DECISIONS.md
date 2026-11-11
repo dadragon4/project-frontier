@@ -17,6 +17,17 @@ The decision register: the user's rulings, open conflicts (`Cn`) and open questi
 | C11 | SEVs are officially employed with advanced gear and bio-enhancements; independent contractors have lesser gear but higher stamina and speed. | `LORE_BIBLE.md` |
 | C12 | A player's own loadout does not weigh on them; equipment taken from a downed player does. Approaching maximum carry weight caps stamina at 20%. | `MOVEMENT_SPEC.md` |
 
+### Rulings by the user, 2026-11-11 (movement controls)
+
+Recorded in `MOVEMENT_SPEC.md`.
+
+- Crouch key (`C`): tap = crouch (standing or walking), slide (sprinting), stand up (crouched or prone); hold = prone (standing, walking or crouched), dive landing prone (sprinting). Crouch is a toggle.
+- Roll moves to `Left Ctrl` (and `Left Command` on a Mac), on the ground while walking or sprinting and in the air for the air roll. No roll while standing still. This replaces the crouch double-tap.
+- A slide on flat ground ends crouched; holding sprint while moving stands up and sprints. A slide down a slope lasts until the slope levels out, and can be ended early by jump or crouch.
+- Sprint works in every direction; sideways and backwards are slightly slower.
+- Slide, roll and dive stay separate moves.
+- Prone is built as a lowered body for now; laying the body flat waits for the custom rig and animations.
+
 ### Still open
 
 | ID | Topic |

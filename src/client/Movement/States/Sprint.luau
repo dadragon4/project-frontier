@@ -1,7 +1,8 @@
 -- Running. Speed builds up over time rather than switching on instantly.
+-- Works in any direction; sideways and backwards are slower.
 
 local Sprint = {
-	allowsGroundRoll = true, -- double-tapping crouch here starts a roll
+	allowsGroundRoll = true, -- the roll key rolls from here
 	allowsClamber = true, -- vault / mantle can start from here
 }
 
@@ -16,20 +17,26 @@ function Sprint.update(ctx, dt: number): string?
 		return "Air"
 	end
 
-	if ctx.input.isDown("Crouch") then
-		if ctx:getSpeed() >= config.Slide.MinSpeed then
-			return "Slide"
-		end
-		return "Crouch"
+	-- Crouch key: tap to slide, hold to dive. Too slow for either, and it
+	-- behaves as it does when walking (crouch / prone).
+	local key = ctx:crouchKey()
+	if key == "tap" then
+		return if ctx:getSpeed() >= config.Slide.MinSpeed then "Slide" else "Crouch"
+	elseif key == "hold" then
+		return if ctx:getSpeed() >= config.Dive.MinSpeed then "Dive" else "Prone"
 	end
 
 	if not ctx:wantsSprint() then
 		return "Walk"
 	end
 
-	-- Below walk speed (for example straight after turning round) pick up
-	-- speed at the normal rate; above it, build toward sprint speed slowly.
-	local accel = if ctx:getSpeed() < config.WalkSpeed then config.GroundAccel else config.SprintAccel
+	-- Below walk speed pick up speed at the normal rate; above it, build
+	-- toward sprint speed slowly. What counts is the speed in the direction
+	-- being pushed, not the total: after cutting sideways out of a sprint
+	-- you are still moving fast, but not yet in the new direction, and that
+	-- new direction should pick up at the normal rate.
+	local along = ctx.velocity:Dot(ctx.wishDir)
+	local accel = if along < config.WalkSpeed then config.GroundAccel else config.SprintAccel
 	-- Extra speed from a slide-hop or vault bleeds away gently (OverSpeedDecel).
 	ctx:accelerate(config.SprintSpeed, accel, config.GroundDecel, dt, config.OverSpeedDecel)
 	return nil
