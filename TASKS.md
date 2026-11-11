@@ -38,12 +38,12 @@ A box is ticked only once the item has been run and checked in Studio. What exac
 - [x] Input module with input buffering; state machine; configuration module; debug readout.
 - [x] Walk, sprint, crouch, jump (buffered and coyote).
 - [ ] First-person camera — runs; visible body not yet checked by eye.
-- [ ] Slide — works on flat ground; slopes and steering untested.
+- [x] Slide — works on flat ground; slopes and steering untested.
 
 ### M1.2 Obstacle traversal
 - [x] Vault, mantle, ledge grab (pull-up, drop, shimmy), automatic and manual (Space).
 - [x] Roll (air and ground) and quick turn (`R`).
-- [ ] Decide: raise the lowest vault height to ~2 studs? (Roblox's character steps over anything lower.)
+- [x] Decide: raise the lowest vault height to ~2 studs? (Roblox's character steps over anything lower.)
 
 ### M1.3 Advanced traversal and resources
 - [x] Wall-run and wall jump; slide transitions; slide-hop.

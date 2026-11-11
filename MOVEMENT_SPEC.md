@@ -187,7 +187,7 @@ Checked automatically by `python3 tools/studio.py test` (18 checks, all passing 
 | Walk, sprint | Reaches walk and sprint speed in the right state |
 | Slide | Starts from a sprint with a boost; ends in a crouch |
 | Crouch | Speed and lowered body; stays crouched under the tunnel roof and stands once clear |
-| Jump | Height matches the config; a jump pressed just before landing fires on landing; coyote jump (on a slow frame rate the script widens the window, so the tuned 0.12 s itself is unverified) |
+| Jump | Height matches the config; a jump pressed just before landing fires on landing; coyote jump (on a slow frame rate the script widens the window, so the tuned 0.12 s itself is unverified); jump cooldown (tested with 0.5 s: a press during it is ignored, one after it jumps) |
 | Roll | Air roll after an 8 stud fall; ground roll from a crouch double-tap |
 | Vault | Automatic vault over the 2 stud box while sprinting |
 | Mantle | Automatic mantle onto the 4 stud box |
@@ -200,7 +200,7 @@ Checked once by hand through Studio with simulated keys (2026-11-10), not in the
 
 Keys: `W A S D` move, `Left Shift` sprint (hold), `C`, `Left Ctrl` or (on a Mac) `Left Command` crouch (hold; press while sprinting to slide), `Space` jump / manual clamber / pull up / wall jump, `R` quick turn, `P` settings.
 
-Jump height is 3.25 studs (lowered from 6, then 4.5, at the user's request on 2026-11-10 for a more realistic human jump; Roblox's default is 7.2).
+Jump height is 3.25 studs (lowered from 6, then 4.5, at the user's request on 2026-11-10 for a more realistic human jump; Roblox's default is 7.2). `JumpCooldown` (requested by the user 2026-11-10) sets how long after landing from a jump before the next one; it is 0, so jumps work straight away until it is tuned. Wall jumps ignore it.
 
 Roll: tap crouch while in the air after a drop of 6 studs or more, or double-tap crouch on the ground.
 

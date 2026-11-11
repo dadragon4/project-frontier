@@ -36,6 +36,7 @@ return {
 	AirAccel = 20, -- steering strength while airborne (speed itself is kept)
 	JumpHeight = 3.25, -- Roblox's default is 7.2
 	CoyoteTime = 0.12, -- how long after leaving the ground we still count as grounded (and may still jump)
+	JumpCooldown = 0.5, -- seconds after landing from a jump before you can jump again (0 = straight away; wall jumps are not affected)
 
 	-- Input buffering: how long an early press is remembered.
 	Buffer = {

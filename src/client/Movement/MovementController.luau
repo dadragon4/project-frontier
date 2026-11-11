@@ -110,6 +110,8 @@ function MovementController.new(character: Model, input)
 	self._destroyed = false
 	self._jumped = false -- true from take-off until we are back on the ground
 	self._jumpedAt = 0
+	self._jumpLandedAt = -math.huge -- when we last landed from a jump (for the jump cooldown)
+	self._jumpCooling = false -- true while the jump cooldown has jumping switched off
 
 	-- Fires for every jump, whether Roblox's control script or our buffered
 	-- jump started it.
@@ -376,6 +378,7 @@ function MovementController:_readGround(dt: number)
 	-- because the floor is still detected for a frame or two after take-off.)
 	if self._jumped and onFloor and os.clock() - self._jumpedAt > 0.2 then
 		self._jumped = false
+		self._jumpLandedAt = os.clock()
 	end
 
 	-- A short grace period stops stairs and small bumps counting as
@@ -388,8 +391,19 @@ end
 --   Coyote:   jump pressed slightly after running off an edge still fires.
 -- An ordinary jump (pressed while standing on the ground) is done by
 -- Roblox's control script and never reaches the code below.
+--
+-- Jump cooldown: for JumpCooldown seconds after landing from a jump, the
+-- Humanoid's Jumping state is switched off. That blocks Roblox's own jump
+-- as well as ours. A press during the cooldown stays remembered for the
+-- usual buffer time, so a press just before the cooldown ends still jumps.
 function MovementController:_handleJump()
-	if self._jumped or self.state.blocksJump then
+	local cooling = os.clock() - self._jumpLandedAt < Config.JumpCooldown
+	if cooling ~= self._jumpCooling then
+		self._jumpCooling = cooling
+		self.humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, not cooling)
+	end
+
+	if self._jumped or cooling or self.state.blocksJump then
 		return
 	end
 	if not self.input.isBuffered("Jump", Config.Buffer.Jump) then

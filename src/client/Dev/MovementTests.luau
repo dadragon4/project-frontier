@@ -201,6 +201,30 @@ local function run(input, c): string
 			)
 		end,
 
+		function() -- jump cooldown: a jump pressed during the cooldown is ignored, one after it works
+			place(0, 120)
+			local tuned = Config.JumpCooldown
+			Config.JumpCooldown = 0.5
+			jumps = 0
+			tap("Jump")
+			sawState("Air", 0.5)
+			waitFor(function()
+				return not c._jumped
+			end, 2)
+			tap("Jump") -- straight after landing: should be blocked
+			task.wait(0.7) -- past the cooldown; a remembered blocked press would fire by now
+			local duringCooldown = jumps - 1
+			tap("Jump")
+			task.wait(0.3)
+			Config.JumpCooldown = tuned
+			local afterCooldown = jumps - 1 - duringCooldown
+			check(
+				"jump cooldown",
+				duringCooldown == 0 and afterCooldown == 1,
+				string.format("%d jumps during the cooldown, %d after", duringCooldown, afterCooldown)
+			)
+		end,
+
 		function() -- air roll: crouch pressed during an 8 stud fall
 			place(-100, 45, 8)
 			move(NORTH)
