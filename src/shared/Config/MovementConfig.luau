@@ -147,7 +147,10 @@ return {
 	},
 
 	Vault = {
-		MinHeight = 1.2, -- lower than this is just a step
+		-- Roblox's character steps over anything up to about 2 studs by itself, so lower
+		-- obstacles are treated as steps (user ruling 2026-11-11). 1.9 rather than 2.0 so
+		-- an obstacle exactly 2 studs tall still counts as a vault.
+		MinHeight = 1.9,
 		MaxHeight = 3.0,
 		MaxDepth = 4, -- obstacles deeper than this are mantled onto instead
 		LandingGap = 1.5, -- how far past the far edge you land
@@ -160,7 +163,7 @@ return {
 	},
 
 	Mantle = {
-		MinHeight = 1.2,
+		MinHeight = 1.9, -- same reason as Vault.MinHeight
 		MaxHeight = 6.5,
 		RiseSpeed = 14, -- studs/second while pulling up
 		ForwardTime = 0.15, -- seconds to move onto the ledge once up

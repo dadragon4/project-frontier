@@ -2,7 +2,7 @@
 
 Status labels are defined in `AGENTS.md`. Register entries are in `DECISIONS.md`.
 
-## Code map (2026-11-10)
+## Code map
 
 Open only the files that own what you are changing.
 
@@ -25,7 +25,7 @@ src/server/TestCourse.server         builds the greybox course at server start
 src/server/CharacterCollision.server stops players' arms and legs colliding with the world
 ```
 
-Rojo maps these into three folders it owns and touches nothing else in the place: `ReplicatedStorage.Shared`, `ServerScriptService.Server`, `StarterPlayer.StarterPlayerScripts.Client`. The place file itself holds only the default baseplate and lighting; it is shared through Roblox and kept out of git (user decision 2026-11-10), because a place file is one binary that git cannot merge.
+Rojo maps these into three folders it owns and touches nothing else in the place: `ReplicatedStorage.Shared`, `ServerScriptService.Server`, `StarterPlayer.StarterPlayerScripts.Client`. The place file itself holds only the default baseplate and lighting; it is shared through Roblox and kept out of git, because a place file is one binary that git cannot merge.
 
 **How movement works.** Roblox's own control script still reads the keyboard (and later the thumbstick) and tells the Humanoid which way the player wants to go. Straight afterwards, each frame, our controller reads that wish from `Humanoid.MoveDirection`, works out a velocity using our own acceleration rules, and tells the Humanoid to walk in that direction at that speed. States that move the body directly (mantle, vault, ledge hang, wall-run) put the Humanoid in its "Physics" state instead.
 
@@ -36,15 +36,6 @@ Rojo maps these into three folders it owns and touches nothing else in the place
 - In the Humanoid's "Physics" state every body part becomes solid, and setting `CanCollide` from a script does not stick. A collision group (`PlayerLimbs`, set up by the server) stops limbs colliding with the world.
 - In that state gravity still acts between our frames, so a held body sags. While such a state is active, a `VectorForce` equal to the character's weight cancels gravity.
 - Studio runs at a low frame rate while its window is in the background, which matters for timing-sensitive tests.
-
-## Principles [Established]
-
-- Luau, Roblox Studio, current supported APIs; nothing deprecated.
-- Modular, readable, independently testable systems; no premature abstraction; no unjustified dependencies.
-- Client handles input, camera, animation and local feedback. Server is authoritative for gameplay state.
-- Validate every important action on the server.
-- Use physics deliberately.
-- Separate permanent player data from temporary deployment data.
 
 ## Key terms (for reference)
 
@@ -76,46 +67,19 @@ Hubs and extraction missions are separate experiences or instances with a reliab
 
 **[Proposed]** One experience with separate places — hub, hideout, each deployment map — joined by Roblox's teleport service using private reserved servers for squads and deployments. To be designed properly in Phases 4–6 (**[Q28]**). Not needed for the movement prototype, which runs in a single test place.
 
-## Client/server responsibilities [Established]
+## Client, server and networking
 
-| Server decides | Client handles |
-| :-- | :-- |
-| Inventory, item and weapon ownership | Input |
-| Damage | Camera and camera effects |
-| Extraction outcomes | Animation presentation |
-| Persistent progression, currency, resources, blueprints | Local feedback (sound, UI, effects) |
-| Faction affiliation, squad restrictions | |
-| Important environmental interactions | |
+The rules (what the server decides, what the client handles, what every remote must validate) are in `AGENTS.md` → "Technical standards".
 
-## Networking [Established]
+## Movement architecture
 
-Each remote validates arguments, permissions, distance and interaction conditions; is protected against spam; sends minimal state; and is designed with network ownership and multiplayer consistency in mind.
+**Built:** Roblox's own character (`Humanoid`) handles standing, stairs and replication; our state machine on top controls acceleration and speed and takes over the body for the special moves. The character is always in exactly one state, one small file each (see the code map). All motion is scaled by elapsed time, so it is the same at any frame rate. If the Humanoid ever gets in the way, the fallback is Roblox's newer `ControllerManager` system; a fully custom controller is the last resort.
 
-## Movement architecture [Proposed]
+**Not built yet [Proposed]:**
 
-**The core trade-off.** Responsive movement needs the player's own device to simulate their character immediately. Cheat-resistant movement needs the server to be in charge. The standard Roblox answer, and the recommendation here, is: **the client simulates movement; the server checks that what it sees is plausible** (speed limits per movement state, no impossible position jumps, stamina tracked on the server too) and corrects or flags violations.
-
-**How to build the character controller — three options:**
-
-| Option | What it is | For | Against |
-| :-- | :-- | :-- | :-- |
-| A. Humanoid + custom layer | Keep Roblox's built-in character (`Humanoid`) for standing, walking, stairs and replication. Add our own state machine that controls acceleration and speed and takes over for slide, vault, mantle, wall-run. | Fastest path to something playable. Avatars, animation and multiplayer replication work from the start. | The Humanoid has opinions of its own and sometimes fights custom behaviour; edge cases need workarounds. |
-| B. Roblox's physics character controllers | Roblox's newer configurable controller system (`ControllerManager` with ground/air/climb controllers). | Designed for custom movement; more control over acceleration and friction. | Less community knowledge; behaviour and maturity need hands-on checking. |
-| C. Fully custom controller | Our own collision and movement maths, no Humanoid. | Total control. | Most work by far; we rebuild slopes, stairs and replication ourselves. |
-
-**Recommendation:** start with **A**, and write the movement states so they do not care which option moves the body underneath. Spend a short, time-boxed test on **B** at the start of the milestone before committing. Avoid C unless A and B both fail.
-
-**To verify before the anti-cheat task:** Roblox has been developing built-in server-authoritative character movement. Its current availability must be checked in the official documentation at that point; if it is production-ready it could replace hand-written validation.
-
-**Shape of the code [Proposed]:**
-
-- A **state machine**: the character is always in exactly one movement state (walk, sprint, crouch, slide, air, vault, mantle, wall-run, ledge-hang). Each state has its own rules and a list of states it may switch to. This keeps each ability in its own small module and makes "slide into vault" an explicit, tunable transition.
-- A single **movement configuration module** holding every tunable number.
-- **Environment detection** by raycasts and shape-casts (invisible probes fired from the character to find obstacles, ledges and walls). Whether level geometry is detected purely by shape or also by designer-placed tags is an implementation choice to settle when vaulting is built.
-- **Frame-rate independence:** all motion scaled by elapsed time, so movement is identical at 30 and 240 FPS.
-- **Camera** as a separate module (first-person lock, tilt, field-of-view changes, head-bob), so feel can be tuned without touching movement logic.
-- **Input** through one module that maps actions ("sprint", "vault") to physical inputs, so adding gamepad or touch later does not touch movement code (**[Q2]**).
-- Stamina and weight as small pure modules (numbers in, numbers out) that are easy to test.
+- **Server checks.** The client simulates its own character so movement feels instant; the server checks that what it sees is plausible (speed limits per state, no impossible position jumps, stamina tracked on the server too) and corrects or flags violations. Before writing this, check the official documentation for Roblox's built-in server-authoritative movement; if it is production-ready it could replace hand-written checks.
+- **Stamina and weight** as small pure modules (numbers in, numbers out) that are easy to test.
+- **Gamepad and touch** bindings in the Input module; movement code does not change.
 
 ## Physics [Established]
 
@@ -147,11 +111,8 @@ None is to be created before its phase.
 
 ## Tooling
 
-In use: git (private GitHub repo), Rojo 7.7.1 (Homebrew on Mac, release zip on Windows) with its Studio plugin, and `tools/studio.py` (talks to Studio's built-in MCP server; works on Mac and Windows). **[Proposed]**, not installed: Rokit (pins tool versions), StyLua and Selene (formatting and catching common Luau mistakes). No gameplay libraries or frameworks are proposed.
+In use: git (GitHub repo), Rojo 7.7.1 (Homebrew on Mac, release zip on Windows) with its Studio plugin, and `tools/studio.py` (talks to Studio's built-in MCP server; works on Mac and Windows). **[Proposed]**, not installed: Rokit (pins tool versions), StyLua and Selene (formatting and catching common Luau mistakes). No gameplay libraries or frameworks are proposed.
 
-## Testing approach
+## Testing
 
-- Scripted checks on the greybox test course, run with `python3 tools/studio.py test` (see `AGENTS.md` → Testing). Each new ability gets a check there.
-- Pure logic (stamina, weight maths) written so it can be checked without a running character. There is no Luau runtime outside Studio on this machine, so these checks would also run through Studio.
-- The user play-tests for feel; Studio's multi-client test mode for anything networked.
-- Every report states what was and was not tested.
+See `AGENTS.md` → Testing. Anything networked also needs Studio's multi-client test mode.

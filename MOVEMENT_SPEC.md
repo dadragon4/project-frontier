@@ -1,8 +1,8 @@
 # MOVEMENT_SPEC.md — PROJECT FRONTIER
 
-Movement is pillar #1 and the first system to prototype. Status labels are defined in `AGENTS.md`; register entries (`Cn`, `Qn`) are in `DECISIONS.md`.
+Movement is pillar #1. Status labels are defined in `AGENTS.md`; register entries (`Cn`, `Qn`) are in `DECISIONS.md`.
 
-**No tuning numbers are established.** Every speed, distance, cost and threshold is to be found by playtesting; values will live in one configuration module so they can be changed without touching logic.
+**Numbers live in `src/shared/Config/MovementConfig.luau`, not here.** Each one has a comment there saying what it does. This file describes behaviour; it quotes a number only where the user ruled on it. No tuning value is final until the tuning pass (M1.4).
 
 ## Intent [Established]
 
@@ -11,110 +11,31 @@ Movement is pillar #1 and the first system to prototype. Status labels are defin
 - First-person during deployments.
 - Custom-built rather than relying entirely on default Roblox character movement.
 
+## Keys
+
+`W A S D` move · `Left Shift` sprint (hold, any direction) · `C` tap: crouch / slide / stand up · `C` hold: prone / dive · `Left Ctrl` (or `Left Command` on a Mac) roll · `Space` jump / manual clamber / pull up / wall jump · `R` quick turn · `P` settings.
+
 ## Abilities
 
-### Sprint — Essential [Established]
+Everything in this section is built unless it says otherwise. "As built" lines are the agent's **[Proposed]** details, open to change.
 
-- Responsive acceleration; smooth and controllable.
-- Influenced by carried weight (exactly how: **[Conflict C8]**).
-- Momentum carries into other movement actions.
+### Sprint [Established]
 
-### Slide — Essential [Established]
+- Responsive acceleration; smooth and controllable. Momentum carries into other movement actions.
+- Works in any direction. Moving sideways or backwards is slower than straight ahead, in every ground state (`StrafeSpeedScale`, `BackSpeedScale`, blended in between).
+- Added weight lowers top speed (see "Weight"; not built).
 
-- A momentum-based transition out of sprinting. Depends on acceleration and momentum; players build speed first.
-- Momentum is preserved where appropriate.
-- Connects naturally into other traversal actions.
-- Slide distance is affected by weight (longer when light, shorter when heavy).
+### Strafing [Established: precise, responsive, competitive, still momentum-based]
 
-### Clambering mode: automatic or manual [Established — user decision 2026-11-10]
+As built:
 
-This supersedes the concept doc's "vaulting should require deliberate player input" as a hard rule. "Clambering" means vaulting and mantling together.
+- Pushing against your own momentum (a counter-strafe) brakes at its own faster rate, `ReverseDecel`. Letting go of the keys uses `GroundDecel`; cornering uses `TurnFriction`.
+- The gentle bleed-off of extra sprint speed only applies when pushing forward, so forward sprint speed cannot be carried into a strafe or a backpedal.
+- Steering in the air cannot build more speed than walking that way would.
+- A sideways cut out of a sprint picks up the new direction at the normal (fast) rate.
+- Measured at 60 frames per second with the current config: walk reversal 0.23 s; sprint reversal 0.37 s; a sprint cut to the side dips from 25 to 19.6 and completes in 0.22 s.
 
-- Players choose in settings whether clambering is **automatic** or **manual**. Players should have options.
-- **Manual** uses a dedicated key, and is rewarded with a **stamina boost**. The key is **Space** for vault, mantle and ledge grab (user decision 2026-11-10).
-- **Gamepad and touch** use auto-clambering.
-- The original intent still stands for manual players: obstacles matter, and misreading one costs time.
-
-- The stamina boost is a **small amount of stamina given back**.
-- Keyboard and mouse default to **automatic**.
-
-As built: **automatic** — moving into an obstacle vaults, mantles or grabs it (on the ground or in the air); **manual** — the same only happens while Space is held or was pressed within the last 0.25 s. The setting is in the settings panel (`P`). The stamina refund is not built (no stamina yet).
-
-**Known limitation:** Roblox's built-in character automatically steps over anything lower than about 2 studs. So in manual mode, obstacles under roughly 2 studs cannot block anyone; the 1.5-stud test rail was simply walked over. Options: raise the lowest vault height to about 2 studs (so low obstacles count as steps), or accept it. **Not decided.**
-
-**[Open] [Q4]** Whether gamepad and touch players may opt into manual; what vaulting "under" an obstacle means.
-
-### Vault — Essential [Established]
-
-- Traverses obstacles, in automatic or manual mode as above.
-- The master prompt speaks of vaulting "over or under" an obstacle.
-
-**[Proposed]** as built: obstacles 1.2 to 3 studs tall and at most 4 studs deep, with floor behind them, are vaulted in one smooth arc, keeping 95% of your speed (at least 10). Deeper low obstacles are mantled onto instead. Sliding into an obstacle vaults it too, which covers the "slide into a vault" transition.
-
-### Mantle — Essential [Established]
-
-- Climb ledges, pipes and other structures, in automatic or manual mode as above.
-- Supports escaping, pursuing, and reaching hidden areas and stored resources.
-- Climbing performance is affected by weight.
-
-### Roll [Established — user decision 2026-11-10]
-
-Two ways to roll (user decisions 2026-11-10):
-
-- **Air roll:** press the roll key while in the air, before touching the ground, and you roll on landing — but only if you fell from a height of at least 6 studs. **Agent's reading, to confirm:** "height" is measured as the drop from the highest point of the jump or fall to the landing spot. On a shorter fall the press does nothing.
-- **Ground roll:** press the roll key while walking, sprinting or sliding. Standing still does not roll. The roll goes in the direction you are pushing.
-
-The roll key is `Left Ctrl`, or `Left Command` on a Mac (user decision 2026-11-11; it replaces the crouch double-tap and crouch-in-the-air). **Agent's choice, to confirm:** rolling out of a slide was kept (it existed before); rolling from a crouch was removed, since the ruling says "walking or sprinting".
-
-**[Proposed]** details as built: the roll keeps the speed you had (at least 10, at most 24 studs/s), lasts about half a second, keeps the body low, and turns the camera over once (can be set to 0 in the config). Afterwards: sprint held → sprint; otherwise walk. Not built: a hard-landing penalty that the roll would avoid (a possible later addition, not decided).
-
-### Quick turn [Established — user decision 2026-11-10]
-
-Pressing `R` makes the player do a quick turn: the view swings round 180 degrees.
-
-**[Proposed]** details as built: the turn takes 0.18 seconds and works in every state except mid-mantle. Speed is not kept through the turn; the normal turning rules apply, so a sprinting player slows sharply and then accelerates the other way. (An alternative would be to keep full speed through the turn; not decided.)
-
-### Mantle heights [Established — user decision 2026-11-10]
-
-The user asked for mantling onto "a block that is at least 5 blocks high". **Agent's reading, to confirm:** mantling must handle blocks of 5 studs and more. As built, it works on blocks up to 6.5 studs tall (from the ground or from a jump). Low thick blocks that cannot be vaulted are mantled too (from 1.2 studs). Taller ledges are grabbed instead (see Ledge grab). The limits are in the config.
-
-### Crouch — Essential [Established]
-
-Responsive and intuitive. For stealth, tactical positioning, getting under obstacles, and reacting to threats.
-
-### Wall-run — High [Established]
-
-An alternative route where conventional ones (climbing, ladders) do not exist. Complements the rest of the system.
-
-**[Proposed]** as built: jump alongside a wall while moving along it at 12 studs/s or more, and you run along it for up to 1.3 s, with a small upward kick at the start that curves down. Space pushes off into a **wall jump** (keeping 80% of the speed); crouch drops off. The run also ends when the wall ends, you reach the floor, or speed runs out. You cannot run the same wall twice before landing. Wall-run is automatic in both clambering modes (not decided otherwise).
-
-### Ledge grab — High [Established]
-
-Integrates with mantling and wall-running; supports natural movement between surfaces.
-
-**[Proposed]** as built: a ledge too tall to mantle (above 6.5 studs, up to 10, and within arm's reach) is grabbed while airborne. While hanging: **Space** pulls up, **crouch** lets go, **left/right** shimmies along the ledge as long as it continues. **[Open]** whether hanging should be time-limited (or drain stamina once stamina exists); for now it is unlimited.
-
-### Slide transitions — Medium [Established]
-
-Skilled players chain a slide into a vault or another action. Successful chains enable longer gaps and advanced routes.
-
-As built: slide into an obstacle → vault; slide → jump (slide-hop, below); slide → roll key → roll.
-
-### Slide-hop [Established — user decision 2026-11-10]
-
-Jumping out of a slide keeps a little of the speed, and then acceleration picks back up.
-
-**[Proposed]** as built: +3 studs/s on the jump (never above 26), at most once per second. While sprinting, speed above sprint speed eases off gently (10 studs/s per second) instead of being cut instantly, so the extra speed lasts about half a second after landing.
-
-### Camera feel and settings [Established — user decision 2026-11-10]
-
-Movement should feel physical, with a settings option to reduce camera motion.
-
-**[Proposed]** as built: head bob scaled with speed, up and down each step plus a side-to-side sway (`SideBobAmount`); a landing dip that grows with fall height (none after a roll); a slight lean when strafing; a 10° tilt away from the wall while wall-running; small downward looks during mantles and vaults. **Reduce camera motion** removes the bob, lean, tilts and the roll/mantle/vault camera movements, and shrinks the landing dip (35%) and speed field-of-view change (50%). Settings open with `P` and are **not saved** between sessions yet (that belongs to Phase 5).
-
-### Crouch key: tap and hold [Established — user decision 2026-11-11]
-
-One key (`C`) does two jobs, by how long it is pressed:
+### Crouch key: tap and hold [Established]
 
 | | Tap `C` | Hold `C` |
 | :-- | :-- | :-- |
@@ -124,69 +45,110 @@ One key (`C`) does two jobs, by how long it is pressed:
 | Sliding | End the slide early, into a crouch | — |
 | Prone | Stand up | — |
 
-- A slide on flat ground ends in a **crouch**. Holding sprint while moving stands you up from a crouch and runs.
-- A slide down a slope **keeps going until the slope levels out**. It can still be ended early by jumping or pressing crouch.
+- Holding sprint while moving stands you up from a crouch and runs.
 - Slide, roll and dive stay three separate moves.
+- As built: a press released within `CrouchHoldTime` is a tap, so tap actions start when the key comes back up.
 
-**[Proposed]** details as built: a press let go within 0.25 s is a tap; kept down for 0.25 s it is a hold. Because a tap is only known when the key comes back up, tap actions start on release. A slope counts as "down a slope" from 5 degrees; on it the slide has no friction.
+### Crouch [Established]
 
-### Omnidirectional sprint and slower strafing [Established — user decision 2026-11-11]
+Responsive and intuitive. For stealth, tactical positioning, getting under obstacles, and reacting to threats. You cannot stand up under a low roof.
 
-Sprint works in any direction. Moving sideways or backwards is slower than moving straight ahead, in every ground state.
+### Slide [Established]
 
-**[Proposed]** as built: flat sideways gives 85% of the state's top speed and straight back 60%, blended smoothly in between. Strafing also rocks the head sideways more and bounces it less (off with reduced camera motion).
+- A momentum-based transition out of sprinting; players build speed first. Momentum is preserved where appropriate.
+- On flat ground it ends in a crouch. Down a slope it keeps going until the slope levels out, and can be ended early by jumping or pressing crouch.
+- Chains into other moves: slide into an obstacle → vault; slide → jump (slide-hop); slide → roll key → roll.
+- Slide distance will depend on weight (longer when light; not built).
+- As built: a slope counts from `Slide.SlopeMinAngle` degrees; on it the slide has no friction.
 
-**Strafing refinement (user request 2026-11-11): precise, responsive, competitive, still momentum-based.** **[Proposed]** as built:
+### Slide-hop [Established]
 
-- Pushing against your own momentum (a reversal, or counter-strafe) brakes at its own rate, `ReverseDecel` (140), faster than letting go of the keys (`GroundDecel`, 75). A left-to-right reversal at walk speed takes about 0.25 s (was about 0.31 s). Cornering still uses `TurnFriction`.
-- The gentle bleed-off of extra sprint speed only applies when pushing forward, so forward sprint speed cannot be carried into a strafe or a backpedal.
-- Steering in the air cannot build more speed than walking that way would (it used to allow full walk speed backwards).
-- Cutting sideways out of a sprint: the new direction now picks up at the normal rate (it was wrongly using the slow sprint build-up rate, because the character was still moving fast in the old direction). Measured at 60 frames per second: speed dips from 25 to 19.6 (was 15.4) and the cut completes in 0.22 s (was 0.32 s).
-- Not changed: every other number, air steering strength, and sideways acceleration (reaching strafe speed from rest already takes about 0.14 s).
+Jumping out of a slide keeps a little of the speed, and then acceleration picks back up. As built: a small speed bonus on the jump, capped and limited to once a second; while sprinting, speed above sprint speed eases off gently instead of being cut.
 
-### Prone [Established — user decision 2026-11-11]
+### Prone [Established]
 
-Lying down and crawling. Slow to get into and out of. You cannot stand up under a low roof.
+Lying down and crawling. Slow to get into and out of. You cannot stand up under a low roof. As built: `Space` also stands you up.
 
-**[Proposed]** as built: crawl speed 3; the body takes about 0.6 s to lower; 0.35 s minimum before getting up; `Space` also stands you up.
+**Known limitation:** a Roblox Humanoid cannot lie down, so the body is only lowered as far as it goes and stays upright. In first person it reads as lying down; other players see a very short standing character. **Planned:** lay the body flat (Humanoid "Physics" state with the root pitched 90 degrees, as mantle and wall-run do) once the custom rig and animations exist.
 
-**Known limitation:** a Roblox Humanoid cannot lie down, so the body is only lowered as far as it goes (1.75 studs) and stays upright. In first person it reads as lying down; other players see a very short standing character. **Planned follow-up:** lay the body flat properly (Humanoid "Physics" state with the root pitched 90 degrees, as mantle and wall-run do) once the custom rig and animations exist.
+### Dive [Established]
 
-### Dive [Established — user decision 2026-11-11]
+Our own omnidirectional dive: hold crouch while sprinting to leap in the direction you are moving and land prone. No steering in the air. Needs a minimum speed (`Dive.MinSpeed`). Not built: firing while diving or on your back (combat and animation work).
 
-Our own version of an omnidirectional dive: hold crouch while sprinting to leap in the direction you are moving and land prone. No steering in the air.
+### Roll [Established]
 
-**[Proposed]** as built: needs a speed of 18; adds 4 (never above 30); rises 2.5 studs. Not built: firing while diving or on your back (combat and animation work).
+- **Air roll:** press the roll key in the air and you roll on landing, but only after a fall of at least 6 studs. On a shorter fall the press does nothing.
+- **Ground roll:** press the roll key while walking, sprinting or sliding. Standing still does not roll. The roll goes in the direction you are pushing.
 
-## Stamina and momentum [Established]
+As built: the roll keeps your speed (within limits), lasts about half a second, keeps the body low, and turns the camera over once. Afterwards: sprint if sprint is held, otherwise walk.
 
-- Parkour consumes stamina.
-- Momentum reduces stamina consumption: keeping flow lets a player traverse for longer.
-- Poorly planned movement carries a cost; skilled movement is rewarded.
-- Stamina is a player skill. Capacity or efficiency improves as the player levels up through XP.
+**Agent's readings, to confirm:** "height" is the drop from the highest point of the jump or fall to the landing spot. Rolling out of a slide was kept; rolling from a crouch was removed, since the ruling says "walking or sprinting".
+
+**Known risk with Command as the roll key:** macOS treats Command plus a letter as a shortcut (`Command+W` closes the window, `Command+Q` quits), and often fails to report other keys being released while Command is held. Untested; check in Studio and the Roblox player before relying on it.
+
+### Quick turn [Established]
+
+`R` swings the view round 180 degrees. As built: works in every state except mid-mantle; speed is not kept, so a sprinting player slows sharply and then accelerates the other way.
+
+### Clambering mode: automatic or manual [Established]
+
+"Clambering" means vaulting, mantling and grabbing ledges. This replaces the concept doc's "vaulting should require deliberate player input" as a hard rule.
+
+- Players choose in settings (`P`). Keyboard and mouse default to **automatic**: moving into an obstacle clambers it, on the ground or in the air.
+- **Manual:** the same only happens while `Space` is held or was just pressed. It will be rewarded with a small amount of stamina given back (not built; no stamina yet). Obstacles matter, and misreading one costs time.
+- **Gamepad and touch** clamber automatically by default; manual is available to them in settings.
+
+**Lowest obstacle [Established]:** Roblox's character steps over anything lower than about 2 studs by itself, so obstacles under about 2 studs count as steps in both modes and are never vaulted or mantled. (`Vault.MinHeight` and `Mantle.MinHeight` are 1.9, so an obstacle exactly 2 studs tall still counts.)
+
+**[Open] [Q4]** What vaulting "under" an obstacle means.
+
+### Vault [Established]
+
+Traverses obstacles. As built: low, thin obstacles with floor behind them are vaulted in one arc, keeping nearly all your speed. Deeper low obstacles are mantled onto instead.
+
+### Mantle [Established]
+
+Climb ledges, pipes and other structures, to escape, pursue and reach hidden areas. The user asked for mantling onto "a block that is at least 5 blocks high"; **agent's reading, to confirm:** blocks of 5 studs and more must work. As built: up to 6.5 studs, from the ground or from a jump. Climbing will be affected by weight (not built).
+
+### Ledge grab [Established]
+
+A ledge too tall to mantle and within reach is grabbed while airborne. While hanging: `Space` pulls up, crouch lets go, left/right shimmies along the ledge. **[Open]** whether hanging is time-limited or drains stamina; for now it is unlimited.
+
+### Wall-run [Established]
+
+An alternative route where conventional ones do not exist. As built: jump alongside a wall while moving along it fast enough and you run along it for a short time in a shallow arc. `Space` wall-jumps off; crouch drops off. It also ends when the wall ends, you reach the floor, or speed runs out. You cannot run the same wall twice before landing. Automatic in both clambering modes.
+
+### Jump
+
+As built: a press just before landing is remembered (buffered jump); a press just after walking off an edge still jumps (coyote jump). `JumpCooldown` blocks a new jump for a moment after landing from one, and takes priority over the buffered jump. Wall jumps ignore it.
+
+### Camera feel and settings [Established]
+
+Movement should feel physical, with a setting to reduce camera motion.
+
+As built: head bob scaled with speed (up-down and side-to-side; strafing rocks sideways more and bounces less); a landing dip that grows with fall height; a slight lean when strafing; a tilt away from the wall while wall-running; small downward looks during mantles and vaults; the camera turning over in a roll. **Reduce camera motion** removes all of these except a smaller landing dip and a smaller speed field-of-view change. Settings are not saved between sessions yet (Phase 5).
+
+## Stamina and momentum [Established] — not built
+
+- Parkour consumes stamina: **sprinting, sliding, diving and rolling** cost it.
+- Momentum reduces the cost: keeping flow lets a player traverse for longer. Poor planning costs; skill is rewarded.
+- At zero stamina the player's **speed is slowed**: reduced, never disabled.
+- Manual clambering gives a small amount back.
+- Stamina is a player skill: capacity or efficiency improves with level.
 - It must **not** feel like a traditional stamina bar that punishes players for simply moving.
 
-Two interacting systems: stamina limits how long demanding movement can be sustained; momentum rewards flow and efficient decisions.
+**[Open] [Q5]** How much speed is lost at zero stamina; what each action costs; whether vault, mantle, wall-run and jump cost any; how stamina recovers; how "momentum" is measured for the discount and for the "chance for increased momentum".
 
-Note: one line in the concept doc hedges ("if we use stamina"); the dedicated stamina section and the master prompt both treat stamina as part of the design, so it is recorded as established.
+## Weight [Established] — not built
 
-User decisions, 2026-11-10 **[Established]**:
+- Weight is the total of items **collected during the deployment**. The loadout a player deploys with has weight values, but they have **no effect on that player**. They count when equipment changes hands: if Player B downs Player A and takes their equipment, Player B feels its weight (C12).
+- More loot → less efficient movement → a real decision about whether more loot is worth it. Heavily loaded players are never made incapable of parkour.
+- Each piece of equipment (weapons, special grenades, grenades) has a weight value.
 
-- Carrying heavy items picked up during the deployment (not the deployed loadout) makes stamina drain **a little faster**.
-- At zero stamina, movement is **moderately inhibited** — reduced, not disabled.
-- Manual clambering gives a stamina boost (see "Clambering mode").
+Two levels:
 
-- The "20%" figure is a **weight** rule, not a zero-stamina rule: see "The 20% rule" under Weight.
-
-**[Open] [Q5]** What "moderately inhibited" at zero stamina means concretely; which actions cost stamina; whether plain sprinting costs any; how stamina recovers; how "momentum" is measured for the discount and for the "chance for increased momentum".
-
-## Weight [Established]
-
-- Weight is the total mass of items **collected during the deployment**. The loadout the player deployed with does not count.
-- More loot → more weight → less efficient movement → a real decision about whether more loot is worth it.
-- Heavily loaded players are never made incapable of parkour.
-
-Concept-doc tiers:
+1. **Inhibition threshold.** At or above it: slower sprint acceleration, lower top speed (C8), stamina drains a little faster and regenerates slower, less chance for increased momentum. Slides are shorter and climbing is harder.
+2. **Approaching maximum carry weight.** Stamina is capped at **20% of the player's maximum**. Maximum stamina differs per player by rank, class and faction (later work).
 
 | Load | Mobility | Effect |
 | :-- | :-- | :-- |
@@ -194,81 +156,37 @@ Concept-doc tiers:
 | Medium | Balanced | Moderate acceleration and traversal limitations |
 | Heavy | Reduced | Slower acceleration, shorter slides, more difficult traversal |
 
-**[Conflict C8]** What weight affects:
+**[Open] [Q6]** The threshold and maximum values; what "approaching" means as a number; penalty sizes; whether non-equipment items (resources, quest items) have weight; whether anything can be picked up beyond the maximum.
 
-- Concept doc: acceleration, slide distance, stamina consumption, climbing performance. Sprint is described as "responsive acceleration influenced by carried weight".
-- Master prompt: acceleration, movement efficiency, sliding, traversal performance; under Sprint, "movement **speed** influenced by weight"; and "the exact weight thresholds, penalties, and interaction with stamina are not finalized".
-- **Resolved 2026-11-10:** weight raises stamina drain slightly, and weight lowers top speed.
+For the prototype, weight and stamina capacity are test values set by hand; the inventory (`EXTRACTION_SPEC.md`) and progression systems supply them later.
 
-### Weight model [Established — user decision 2026-11-10]
+## Character and input [Established]
 
-- Each piece of equipment (weapons, special grenades, grenades) has an assigned weight value.
-- Weight is **threshold-based**: when the total reaches or exceeds a specific value, inhibitions begin:
-  - slower acceleration when sprinting,
-  - lower stamina regeneration,
-  - less chance for increased momentum.
-- **Weight also lowers top speed** (user ruling 2026-11-10, settles C8).
-- Earlier the same day: a heavy scavenged load also drains stamina a little faster.
-
-**[Established — ruling 2026-11-10, settles C12]** The loadout a player deploys with carries weight values, but they have **no effect on that player**. Weight activates when equipment changes hands: if Player B downs (kills) Player A and takes their equipment, Player B feels its weight.
-
-**[Established — ruling 2026-11-10] The 20% rule.** There is a maximum weight a player is allowed to carry. As a player approaches it, their stamina is **limited to 20% of their maximum stamina**. Maximum stamina differs per player by rank, class and faction (to be worked on later).
-
-So there are two weight levels: the inhibition threshold (slower sprint acceleration, lower stamina regeneration, less chance for increased momentum) and, above it, the approach to maximum carry weight (stamina capped at 20%).
-
-**[Open] [Q6]** The threshold and maximum values; what "approaching" means as a number; penalty sizes; whether non-equipment items (resources, quest items) also have weight; whether anything can be picked up beyond the maximum.
-
-## Dependencies on other systems
-
-For the prototype, weight is a test value set by hand; the real number will later come from the inventory system (`EXTRACTION_SPEC.md`). Stamina capacity is a fixed test value; progression will supply it later. Neither system is built during the movement milestone.
-
-## Technical approach
-
-See `TECHNICAL_ARCHITECTURE.md` → "Movement architecture".
+- Custom character rig, with the body visible in first person (looking down shows the body; empty hands are visible). Until it exists the prototype uses a standard Roblox R15 rig, with the code written so the rig can be swapped.
+- Input is built as actions ("sprint", "vault") mapped to devices, so gamepad and touch can be added without changing movement code. Only keyboard and mouse are bound.
 
 ## Implementation status
 
-Checked automatically by `python3 tools/studio.py test` (38 checks, all passing on 2026-11-11; see `src/client/Dev/MovementTests.luau`):
+Checked automatically by `python3 tools/studio.py test` (38 checks, all passing on 2026-11-11; `src/client/Dev/MovementTests.luau`):
 
 | Area | What the script checks |
 | :-- | :-- |
 | Walk, sprint | Reaches walk and sprint speed in the right state |
 | Direction speed | Walking backwards is capped; sprint works backwards and sideways, slower; a diagonal is no faster than straight ahead |
-| Strafing | A counter-strafe reverses in about 0.25 s with no speed spike; forward sprint speed is not carried into a backpedal; no speed gained in the air while backpedalling; a sideways cut out of a sprint keeps most of its speed |
+| Strafing | A counter-strafe reverses quickly with no speed spike; forward sprint speed is not carried into a backpedal; no speed gained in the air while backpedalling; a sideways cut out of a sprint keeps most of its speed |
 | Slide | A crouch tap while sprinting slides with a boost and ends in a crouch; down the 15° ramp it keeps its speed and ends on the flat |
 | Crouch | Tap toggles it; stays without the key at crouch speed and height; sprint stands you up; cannot stand under the tunnel roof |
-| Prone | Hold crouch lowers the body 1.75; crawl speed; tap stands up; cannot stand under the tunnel roof |
-| Dive | Leaves the ground (about 2.4 studs) and lands prone |
-| Jump | Height matches the config; a jump pressed just before landing fires on landing (with the jump cooldown off; with it on, that press is refused by design); coyote jump (on a slow frame rate the script widens the window, so the tuned 0.12 s itself is unverified); jump cooldown |
+| Prone | Hold crouch lowers the body; crawl speed; tap stands up; cannot stand under the tunnel roof |
+| Dive | Leaves the ground and lands prone |
+| Jump | Height matches the config; buffered jump (checked with the cooldown off); coyote jump (on a slow frame rate the script widens the window, so the tuned window itself is unverified); jump cooldown |
 | Roll | Air roll after an 8 stud fall; ground roll while walking; no roll while standing still |
 | Vault | Automatic vault over the 2 stud box while sprinting |
 | Mantle | Automatic mantle onto the 4 stud box |
 | Ledge grab | Grab on the 8 stud wall from a jump; Space pulls up onto the top |
 | Wall-run | Starts from a jump beside the wall; Space wall-jumps away from it |
 
-Checked once by hand through Studio with simulated keys (2026-11-10), not in the script: quick turn; turning without "ice" (full reverse in about 0.45 s); slide-hop (21 → 24, easing back over about 0.5 s); manual clamber mode; ledge shimmy and drop; mantles of 5 and 6 studs; the settings panel and reduced camera motion; that a normal flat-ground jump does not roll.
+Checked once by hand with simulated keys (2026-11-10), not in the script: quick turn; slide-hop; manual clamber mode; ledge shimmy and drop; mantles of 5 and 6 studs; the settings panel and reduced camera motion; that a flat-ground jump does not roll.
 
-**Not tested:** slide steering; slide on landing; ending a slide early with crouch; getting up from prone with Space; diving sideways or backwards; strafe head bob (camera, needs eyes); momentum in the air; the Command key on a Mac; anything with two players. **Not looked at by eye by anyone:** the visible body, the roll camera, head bob, landing dip and lean. Nobody has yet judged how it feels. All numbers in `src/shared/Config/MovementConfig.luau` are untuned first guesses.
+**Not tested:** slide steering; slide on landing; ending a slide early with crouch; getting up from prone with Space; diving sideways or backwards; strafing around cover or against a wall; the Command key on a Mac; anything with two players.
 
-Keys: `W A S D` move, `Left Shift` sprint (hold, any direction), `C` tap: crouch / slide / stand up, `C` hold: prone / dive, `Left Ctrl` (or `Left Command` on a Mac) roll, `Space` jump / manual clamber / pull up / wall jump, `R` quick turn, `P` settings.
-
-Jump height is 3.25 studs (lowered from 6, then 4.5, at the user's request on 2026-11-10 for a more realistic human jump; Roblox's default is 7.2). `JumpCooldown` (requested by the user 2026-11-10) sets how long after landing from a jump before the next one; it is 0, so jumps work straight away until it is tuned. Wall jumps ignore it.
-
-Roll: press the roll key while moving on the ground, or in the air during a drop of 6 studs or more.
-
-Quick turn: `R`.
-
-Vault / mantle / ledge grab: move into the obstacle (automatic), or press Space at it (manual). Wall-run: jump beside a wall while running along it.
-
-**Known risk with Command as the roll key:** macOS treats Command plus a letter as a shortcut. Rolling while moving means pressing Command with `W`, `A`, `S` or `D`, and `Command+W` / `Command+Q` normally close the window or quit the app. macOS also often fails to report other keys being released while Command is held, which can leave a movement key "stuck". To be checked in Studio and in the Roblox player before relying on it.
-
-## Open items specific to movement
-
-See `DECISIONS.md`: Q2–Q7, C8 and C12.
-
-## Character and input [Established — user decision 2026-11-10]
-
-- Custom character rig, with the body visible in first person (looking down shows the body; empty hands are visible).
-- Input is built as actions ("sprint", "vault") mapped to devices, so gamepad and touch can be added without changing movement code. Only keyboard and mouse are bound for the prototype.
-
-**[Established 2026-11-10]** Until the custom rig exists, the prototype uses a standard Roblox R15 rig, with the code written so the rig can be swapped.
+**Not looked at by eye by anyone:** the visible body, the roll camera, head bob (including the strafe bob), landing dip and lean. Feel has not been judged beyond the user's own number tuning.
