@@ -10,14 +10,14 @@
 
 return {
 	-- Ground speeds
-	WalkSpeed = 12,
-	SprintSpeed = 20,
+	WalkSpeed = 16,
+	SprintSpeed = 25,
 	CrouchSpeed = 7,
 
 	-- How quickly speed changes on the ground
-	GroundAccel = 40, -- from standing still up to walk speed
-	SprintAccel = 16, -- from walk speed up to sprint speed
-	GroundDecel = 50, -- slowing down when input stops or the target speed drops
+	GroundAccel = 100, -- from standing still up to walk speed
+	SprintAccel = 50, -- from walk speed up to sprint speed
+	GroundDecel = 75, -- slowing down when input stops or the target speed drops
 	-- While sprinting, how quickly extra speed above sprint speed (from a
 	-- slide-hop or a vault) bleeds away. Low = the extra speed lingers.
 	OverSpeedDecel = 10,
@@ -134,7 +134,7 @@ return {
 
 	-- Wall-run: jump alongside a wall while moving along it.
 	WallRun = {
-		MinSpeed = 12, -- need at least this much speed to start, and it ends below half of it
+		MinSpeed = 16, -- need at least this much speed to start, and it ends below half of it
 		MaxSpeed = 26,
 		MinAirTime = 0.08, -- must have been airborne this long first
 		MinHeightAboveFloor = 1.0, -- feet must be at least this high
@@ -169,8 +169,9 @@ return {
 	-- Small camera movements that make motion feel physical. "Reduce camera
 	-- motion" in the player's settings turns most of these off.
 	CameraFeel = {
-		BobAmount = 0.12, -- head bob height at sprint speed
-		BobFrequency = 0.55, -- bob cycles per stud travelled (scaled)
+		BobAmount = 0.20, -- head bob height at sprint speed
+		BobFrequency = 0.45, -- bob cycles per stud travelled (scaled)
+		SideBobAmount = 0.10, -- side-to-side sway at sprint speed (one sway left and right per two steps)
 		StrafeLean = 1.5, -- tilt when moving sideways
 		WallRunTilt = 10, -- tilt away from the wall while wall-running
 		DipMinFall = 1.5, -- falls shorter than this give no landing dip
@@ -179,5 +180,6 @@ return {
 		DipDuration = 0.3,
 		ReducedDipScale = 0.35, -- landing dip size with reduced camera motion
 		ReducedFovScale = 0.5, -- speed FOV change with reduced camera motion
+		SideTilt = 0.5, -- tilt when moving sideways (with reduced camera motion)
 	},
 }
