@@ -147,7 +147,7 @@ None is to be created before its phase.
 
 ## Tooling
 
-In use: git (private GitHub repo), Rojo 7.7.1 (Homebrew) with its Studio plugin, and `tools/studio.py` (talks to Studio's built-in MCP server). **[Proposed]**, not installed: Rokit (pins tool versions), StyLua and Selene (formatting and catching common Luau mistakes). No gameplay libraries or frameworks are proposed.
+In use: git (private GitHub repo), Rojo 7.7.1 (Homebrew on Mac, release zip on Windows) with its Studio plugin, and `tools/studio.py` (talks to Studio's built-in MCP server; works on Mac and Windows). **[Proposed]**, not installed: Rokit (pins tool versions), StyLua and Selene (formatting and catching common Luau mistakes). No gameplay libraries or frameworks are proposed.
 
 ## Testing approach
 
