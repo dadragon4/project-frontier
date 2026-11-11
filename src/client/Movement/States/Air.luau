@@ -6,10 +6,9 @@
 --   - vault / mantle / ledge grab are checked by MovementController;
 --   - a wall beside you, while moving along it, starts a WallRun.
 -- On landing:
---   - crouch pressed during this time in the air, and the fall was at least
---     Roll.MinFallHeight                                        -> Roll
---   - crouch held, or tapped just before landing, moving fast   -> Slide
---   - crouch held, moving slowly                                -> Crouch
+--   - roll pressed during this time in the air, and the fall was at least
+--     Roll.MinFallHeight                              -> Roll
+--   - crouch tapped just before landing, moving fast  -> Slide
 --   - otherwise Sprint or Walk.
 
 local Air = {
@@ -32,18 +31,17 @@ function Air.update(ctx, dt: number): string?
 	local config = ctx.config
 
 	if ctx.grounded and ctx.airTime == 0 then
-		local pressedInAir = ctx.input.pressedSince("Crouch", ctx.leftGroundAt)
-		if pressedInAir and ctx.lastFallHeight >= config.Roll.MinFallHeight then
-			return "Roll"
+		if ctx.input.pressedSince("Roll", ctx.leftGroundAt) then
+			if ctx.lastFallHeight >= config.Roll.MinFallHeight then
+				return "Roll"
+			end
+			-- Too short a fall for an air roll: the press is dropped, so it
+			-- does not turn into a ground roll the moment we land.
+			ctx.input.consume("Roll")
 		end
 
-		local held = ctx.input.isDown("Crouch")
-		local tapped = ctx.input.isBuffered("Crouch", config.Buffer.Slide)
-		if (held or tapped) and ctx:getSpeed() >= config.Slide.MinSpeed then
+		if ctx:crouchKey() == "tap" and ctx:getSpeed() >= config.Slide.MinSpeed then
 			return "Slide"
-		end
-		if held then
-			return "Crouch"
 		end
 		if ctx:wantsSprint() then
 			return "Sprint"

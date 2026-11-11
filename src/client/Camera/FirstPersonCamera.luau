@@ -33,7 +33,7 @@ local Settings = require(script.Parent.Parent:WaitForChild("Settings"))
 local PRE_STEP_NAME = "FrontierFirstPersonCameraPre"
 local RENDER_STEP_NAME = "FrontierFirstPersonCamera"
 
-local BOB_STATES = { Walk = true, Sprint = true, Crouch = true }
+local BOB_STATES = { Walk = true, Sprint = true, Crouch = true, Prone = true }
 
 local FirstPersonCamera = {}
 FirstPersonCamera.__index = FirstPersonCamera
@@ -162,8 +162,14 @@ function FirstPersonCamera:_update(dt: number)
 		targetBob = math.clamp(speed / Config.SprintSpeed, 0, 1)
 	end
 	self.bobWeight += (targetBob * motion - self.bobWeight) * blend(10, dt)
-	local bobY = math.sin(self.bobPhase * 2) * self.bobWeight * feel.BobAmount
-	local bobX = math.sin(self.bobPhase) * self.bobWeight * feel.SideBobAmount
+	-- Strafing rocks the head sideways more and bounces it less.
+	-- "sideness" is 0 moving straight ahead or back, 1 moving flat sideways.
+	local sideness = 0
+	if speed > 1 and flatRight.Magnitude > 0.01 then
+		sideness = math.abs((controller.velocity / speed):Dot(flatRight.Unit))
+	end
+	local bobY = math.sin(self.bobPhase * 2) * self.bobWeight * feel.BobAmount * (1 - feel.StrafeBobTrade * sideness)
+	local bobX = math.sin(self.bobPhase) * self.bobWeight * (feel.SideBobAmount + feel.StrafeBobAdd * sideness)
 
 	-- Landing dip (not after a roll, which has its own camera movement).
 	if controller.landedAt ~= self.lastLandingSeen then

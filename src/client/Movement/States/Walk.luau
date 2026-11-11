@@ -1,7 +1,7 @@
 -- Standing on the ground, walking or idle.
 
 local Walk = {
-	allowsGroundRoll = true, -- double-tapping crouch here starts a roll
+	allowsGroundRoll = true, -- the roll key rolls from here (if moving)
 	allowsClamber = true, -- vault / mantle can start from here
 }
 
@@ -16,12 +16,13 @@ function Walk.update(ctx, dt: number): string?
 		return "Air"
 	end
 
-	if ctx.input.isDown("Crouch") then
-		-- Still carrying sprint speed and crouch was pressed a moment ago: slide.
-		if ctx.input.isBuffered("Crouch", config.Buffer.Slide) and ctx:getSpeed() >= config.Slide.MinSpeed then
-			return "Slide"
-		end
+	-- Crouch key: tap to crouch, hold to go prone (or dive, if still
+	-- carrying enough speed).
+	local key = ctx:crouchKey()
+	if key == "tap" then
 		return "Crouch"
+	elseif key == "hold" then
+		return if ctx:getSpeed() >= config.Dive.MinSpeed then "Dive" else "Prone"
 	end
 
 	if ctx:wantsSprint() then

@@ -33,7 +33,8 @@ local REPORT = "MovementTestReport"
 local ORIGIN: Vector3 = DevConfig.TestCourse.Origin
 local NORTH = Vector3.new(0, 0, -1) -- down the course, away from the spawn
 local SOUTH = -NORTH
-local ACTIONS = { "Sprint", "Crouch", "Jump" }
+local EAST = Vector3.new(1, 0, 0)
+local ACTIONS = { "Sprint", "Crouch", "Jump", "Roll" }
 
 local MovementTests = {}
 
@@ -77,6 +78,12 @@ local function run(input, c): string
 		task.wait(0.05)
 		release(action)
 	end
+	-- Hold crouch long enough to count as a hold (prone / dive), then let go.
+	local function holdCrouch()
+		hold("Crouch")
+		task.wait(Config.CrouchHoldTime + 0.15)
+		release("Crouch")
+	end
 	local function move(direction: Vector3)
 		c.wishOverride = direction
 	end
@@ -102,8 +109,8 @@ local function run(input, c): string
 		waitFor(function()
 			return not c.state.controlsBody
 		end, 2)
-		if crouched then
-			hold("Crouch")
+		if crouched and c.stateName ~= "Crouch" then
+			tap("Crouch")
 			waitFor(function()
 				return c._appliedDrop >= Config.Crouch.Drop - 0.05
 			end, 1)
@@ -112,12 +119,20 @@ local function run(input, c): string
 		c.character:PivotTo(CFrame.new(ORIGIN + Vector3.new(x, (y or 0) + rootAboveFeet + 0.1, z)))
 		c.root.AssemblyLinearVelocity = Vector3.zero
 		c.velocity = Vector3.zero
-		-- Long enough that a crouch tap from the previous test cannot pair up
-		-- with one in the next test as a double-tap.
-		task.wait(0.4)
+		task.wait(0.4) -- let the body settle
+		-- Crouch and prone are toggles: stand back up unless asked to crouch.
+		if not crouched and (c.stateName == "Crouch" or c.stateName == "Prone") then
+			tap("Crouch")
+		end
+		-- Wait until fully up (or fully crouched): getting up from prone is slow.
+		local drop = if crouched then Config.Crouch.Drop else 0
 		waitFor(function()
-			return c.airTime == 0 and (c.stateName == "Walk" or c.stateName == "Crouch")
-		end, 2)
+			return c.airTime == 0
+				and c.stateName == (if crouched then "Crouch" else "Walk")
+				and math.abs(c._appliedDrop - drop) < 0.05
+		end, 3)
+		-- A jump in the previous test must not leave its cooldown running.
+		c._jumpLandedAt = -math.huge
 	end
 
 	local jumps = 0
@@ -138,31 +153,204 @@ local function run(input, c): string
 			task.wait(1.5)
 			check("sprint", c.stateName == "Sprint" and near(c:getActualSpeed(), Config.SprintSpeed, 1), now())
 
-			hold("Crouch")
+			tap("Crouch") -- a tap, not a hold: the slide must carry on by itself
 			local slid = sawState("Slide", 0.3)
-			check("slide starts with a boost", slid and c:getSpeed() > Config.SprintSpeed, now())
+			check("tap crouch while sprinting slides, with a boost", slid and c:getSpeed() > Config.SprintSpeed, now())
+			-- Sprint is let go, or the crouch at the end would stand straight
+			-- back up into a sprint.
+			release("Sprint")
 			check("slide ends in crouch", sawState("Crouch", 3), now())
 
-			release("Sprint")
 			task.wait(1)
 			check(
-				"crouch speed and height",
+				"crouch stays without the key, at crouch speed and height",
 				near(c:getActualSpeed(), Config.CrouchSpeed, 1) and c._appliedDrop >= Config.Crouch.Drop - 0.05,
 				now()
 			)
+			hold("Sprint")
+			check("sprint key stands up from a crouch", sawState("Sprint", 0.5), now())
 		end,
 
-		function() -- cannot stand up under the crouch tunnel's roof
+		function() -- a slide down the 15 degree ramp keeps going until the ramp ends
+			-- The ramp's high end is at z = 11; at z = 20 its surface is about 13.1 up.
+			place(45, 20, 13.3)
+			move(SOUTH) -- downhill
+			hold("Sprint")
+			task.wait(0.6)
+			tap("Crouch")
+			local slid = sawState("Slide", 0.3)
+			release("Sprint")
+			local startSpeed = c:getSpeed()
+			task.wait(0.7)
+			check(
+				"slide keeps its speed down a slope",
+				slid and c.stateName == "Slide" and c:getSpeed() >= startSpeed,
+				string.format("%s, %.1f then %.1f", c.stateName, startSpeed, c:getSpeed())
+			)
+			check("slope slide ends in crouch on the flat", sawState("Crouch", 4) and heightAboveCourse() < 1, now())
+		end,
+
+		function() -- crouch toggle
+			place(0, 120)
+			tap("Crouch")
+			local crouched = sawState("Crouch", 0.5)
+			tap("Crouch")
+			check("tap crouch toggles crouch", crouched and sawState("Walk", 0.5), now())
+		end,
+
+		function() -- cannot stand up under the crouch tunnel's roof, crouched or prone
 			place(-45, 86, 0, true)
-			release("Crouch")
+			tap("Crouch")
 			task.wait(0.5)
 			check("stays crouched under a roof", c.stateName == "Crouch", now())
+
+			holdCrouch()
+			local prone = sawState("Prone", 0.5)
+			task.wait(Config.Prone.MinTime + 0.2)
+			tap("Crouch")
+			task.wait(0.5)
+			check("stays prone under a roof", prone and c.stateName == "Prone", now())
+
 			move(SOUTH)
-			check("stands once clear of the roof", sawState("Walk", 3), now())
+			waitFor(function()
+				return c.root.Position.Z - ORIGIN.Z > 92.5
+			end, 4)
+			tap("Crouch")
+			check("stands once clear of the roof", sawState("Walk", 1), now())
+		end,
+
+		function() -- slower sideways and backwards; sprint works in any direction
+			place(0, 120)
+			c.forwardOverride = NORTH -- "looking" up the course while moving other ways
+			move(SOUTH)
+			task.wait(1.2)
+			local back = Config.WalkSpeed * Config.BackSpeedScale
+			check("walking backwards is capped", near(c:getActualSpeed(), back, 1), now())
+			hold("Sprint")
+			task.wait(1.2)
+			local backSprint = Config.SprintSpeed * Config.BackSpeedScale
+			check("sprint works backwards, slower", c.stateName == "Sprint" and near(c:getActualSpeed(), backSprint, 1), now())
+			move(EAST)
+			task.wait(1.2)
+			local sideSprint = Config.SprintSpeed * Config.StrafeSpeedScale
+			check("sprint works sideways, slower", c.stateName == "Sprint" and near(c:getActualSpeed(), sideSprint, 1), now())
+			c.forwardOverride = nil
+		end,
+
+		function() -- strafing: reversal time, no speed gained from diagonals or direction tricks
+			place(0, 120)
+			c.forwardOverride = NORTH
+			local strafe = Config.WalkSpeed * Config.StrafeSpeedScale
+
+			move(NORTH + EAST)
+			task.wait(0.8)
+			check("diagonal is no faster than straight ahead", c:getActualSpeed() <= Config.WalkSpeed + 0.3, now())
+
+			-- Counter-strafe: moving right at full strafe speed, push left.
+			move(EAST)
+			task.wait(0.8)
+			local started = os.clock()
+			local fastest = 0
+			move(-EAST)
+			waitFor(function()
+				fastest = math.max(fastest, c:getSpeed())
+				return c.velocity.X <= -strafe * 0.9
+			end, 2)
+			local took = os.clock() - started
+			-- Time to brake at ReverseDecel, then build 90% of the speed back.
+			local expected = strafe / Config.ReverseDecel + strafe * 0.9 / Config.GroundAccel
+			check(
+				"counter-strafe reverses quickly, with no speed spike",
+				took <= expected + 0.15 and fastest <= strafe + 0.3,
+				string.format("%.2f s (ideal %.2f), top %.1f", took, expected, fastest)
+			)
+
+			-- Cutting sideways out of a forward sprint: the new direction
+			-- picks up at the normal rate, so not much speed is lost.
+			move(NORTH)
+			hold("Sprint")
+			task.wait(1.2)
+			local lowest = math.huge
+			local cutAt = os.clock()
+			move(EAST)
+			waitFor(function()
+				lowest = math.min(lowest, c:getSpeed())
+				return c.velocity.X >= Config.SprintSpeed * Config.StrafeSpeedScale * 0.9
+			end, 2)
+			check(
+				"sprint cut to the side keeps most of its speed",
+				lowest >= Config.SprintSpeed * 0.7 and os.clock() - cutAt <= 0.4,
+				string.format("lowest %.1f, %.2f s", lowest, os.clock() - cutAt)
+			)
+			release("Sprint")
+			task.wait(0.4)
+
+			-- Sprint forward, then "look behind" so the same motion counts as
+			-- backpedalling: the forward speed must not be kept.
+			move(NORTH)
+			hold("Sprint")
+			task.wait(1.2)
+			c.forwardOverride = SOUTH
+			task.wait(0.4)
+			local backSprint = Config.SprintSpeed * Config.BackSpeedScale
+			check("forward sprint speed is not carried into a backpedal", c:getSpeed() <= backSprint + 0.5, now())
+			release("Sprint")
+
+			-- Jumping while backpedalling must not speed you up in the air.
+			c.forwardOverride = NORTH
+			move(SOUTH)
+			task.wait(0.8)
+			local back = Config.WalkSpeed * Config.BackSpeedScale
+			local airTop = 0
+			tap("Jump")
+			sawState("Air", 0.5)
+			waitFor(function()
+				airTop = math.max(airTop, c:getSpeed())
+				return c.stateName ~= "Air"
+			end, 2)
+			check("no speed gained in the air while backpedalling", airTop <= back + 0.5, string.format("top %.1f, cap %.1f", airTop, back))
+			c.forwardOverride = nil
+		end,
+
+		function() -- prone: hold crouch; crawl; tap to stand
+			place(0, 120)
+			holdCrouch()
+			local prone = sawState("Prone", 0.5)
+			waitFor(function()
+				return c._appliedDrop >= Config.Prone.Drop - 0.1
+			end, 2)
+			check("hold crouch goes prone, body lowered", prone, string.format("%s, lowered %.2f", c.stateName, c._appliedDrop))
+			move(NORTH)
+			task.wait(1)
+			check("crawl speed", near(c:getActualSpeed(), Config.Prone.Speed, 0.75), now())
+			tap("Crouch")
+			check("tap crouch stands up from prone", sawState("Walk", 1), now())
+		end,
+
+		function() -- dive: hold crouch while sprinting
+			place(0, 120)
+			move(NORTH)
+			hold("Sprint")
+			task.wait(1.2)
+			local startY = c.root.Position.Y
+			local rise = 0
+			hold("Crouch")
+			local dived = sawState("Dive", 0.6)
+			local landedProne = waitFor(function()
+				rise = math.max(rise, c.root.Position.Y - startY)
+				return c.stateName == "Prone"
+			end, 2)
+			release("Crouch")
+			check("dive leaves the ground", dived and rise > 1, string.format("rose %.1f studs", rise))
+			check("dive lands prone", landedProne, now())
 		end,
 
 		function() -- jump height, then a jump pressed just before landing
 			place(0, 120)
+			-- With a jump cooldown, a jump pressed just before landing is
+			-- (correctly) refused, so the cooldown is off for this check.
+			local tuned = Config.JumpCooldown
+			Config.JumpCooldown = 0
 			local peak = 0
 			jumps = 0
 			tap("Jump")
@@ -174,7 +362,8 @@ local function run(input, c): string
 			check("jump height", near(peak, Config.JumpHeight, 0.75), string.format("%.2f studs", peak))
 			tap("Jump")
 			task.wait(0.6)
-			check("buffered jump", jumps == 2, jumps .. " jumps")
+			Config.JumpCooldown = tuned
+			check("buffered jump (cooldown off)", jumps == 2, jumps .. " jumps")
 		end,
 
 		function() -- coyote jump: pressed just after walking off the 8 stud ledge
@@ -225,22 +414,22 @@ local function run(input, c): string
 			)
 		end,
 
-		function() -- air roll: crouch pressed during an 8 stud fall
+		function() -- air roll: roll pressed during an 8 stud fall
 			place(-100, 45, 8)
 			move(NORTH)
 			sawState("Air", 2)
-			tap("Crouch")
+			tap("Roll")
 			check("air roll after a long fall", sawState("Roll", 2), now())
 		end,
 
-		function() -- ground roll: crouch double-tap
+		function() -- ground roll: roll key while moving, not while standing
 			place(0, 120)
+			tap("Roll")
+			check("no roll while standing still", not sawState("Roll", 0.4), now())
 			move(NORTH)
 			task.wait(0.5)
-			tap("Crouch")
-			task.wait(0.1)
-			tap("Crouch")
-			check("ground roll", sawState("Roll", 0.5), now())
+			tap("Roll")
+			check("ground roll while walking", sawState("Roll", 0.5), now())
 		end,
 
 		function() -- vault over the 2 stud box
@@ -307,6 +496,7 @@ local function run(input, c): string
 	jumpWatch:Disconnect()
 	place(0, 140)
 	c.wishOverride = nil
+	c.forwardOverride = nil
 	Settings.set("ClamberMode", clamberMode)
 
 	return `{passed}/{total} passed\n{table.concat(lines, "\n")}`

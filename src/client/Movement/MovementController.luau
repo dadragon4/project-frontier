@@ -17,7 +17,7 @@
 --                                     itself, so the controller must not
 --                                     send walk instructions
 --     blocksJump = true               optional: no buffered/coyote jumps
---     allowsGroundRoll = true         optional: a crouch double-tap rolls
+--     allowsGroundRoll = true         optional: the roll key rolls from here
 --     allowsClamber = true            optional: vault / mantle / ledge grab
 --                                     can start from this state
 -- where ctx is this controller.
@@ -42,6 +42,8 @@ local States = {
 	Vault = require(StatesFolder:WaitForChild("Vault")),
 	LedgeHang = require(StatesFolder:WaitForChild("LedgeHang")),
 	WallRun = require(StatesFolder:WaitForChild("WallRun")),
+	Prone = require(StatesFolder:WaitForChild("Prone")),
+	Dive = require(StatesFolder:WaitForChild("Dive")),
 }
 
 local RENDER_STEP_NAME = "FrontierMovement"
@@ -86,6 +88,7 @@ function MovementController.new(character: Model, input)
 	self.grounded = true
 	self.airTime = 0
 	self.crouched = false -- states set this; the body lowers to match
+	self.prone = false -- true in Prone and Dive (set by setState); the body lowers further
 	self.lastSlideEnd = -math.huge
 	self.lastSlideHop = -math.huge
 	self.leftGroundAt = 0 -- os.clock() when the feet last left the floor
@@ -96,6 +99,7 @@ function MovementController.new(character: Model, input)
 	self.wallNormal = nil -- set while wall-running (the camera tilts away from it)
 	self.lastWallNormal = nil -- the wall last run on; cannot run it again until landing
 	self.wishOverride = nil -- set by scripted tests to replace the player's move direction
+	self.forwardOverride = nil -- set by scripted tests to replace the camera's facing
 	self.cameraPitch = 0 -- extra camera pitch in radians, applied by the camera
 	self.quickTurnRemaining = 0 -- radians of quick-turn still to apply; the camera does the turning
 	self.airPeakY = 0 -- highest the feet have been during the current time in the air
@@ -105,13 +109,12 @@ function MovementController.new(character: Model, input)
 	self.state = nil
 	self.stateTime = 0
 
-	self._crouchAlpha = 0
-	self._appliedDrop = 0
+	self._appliedDrop = 0 -- studs the body is currently lowered by
 	self._destroyed = false
 	self._jumped = false -- true from take-off until we are back on the ground
 	self._jumpedAt = 0
 	self._jumpLandedAt = -math.huge -- when we last landed from a jump (for the jump cooldown)
-	self._jumpCooling = false -- true while the jump cooldown has jumping switched off
+	self._jumpOff = false -- true while the Humanoid's own jump is switched off
 
 	-- Fires for every jump, whether Roblox's control script or our buffered
 	-- jump started it.
@@ -216,6 +219,7 @@ function MovementController:setState(name: string)
 	self.stateName = name
 	self.state = States[name]
 	self.stateTime = 0
+	self.prone = name == "Prone" or name == "Dive"
 
 	local controlling = self.state.controlsBody == true
 	if controlling then
@@ -228,11 +232,41 @@ function MovementController:setState(name: string)
 	end
 end
 
--- Is the player asking to sprint, and allowed to?
+-- Is the player asking to sprint? Sprint works in any direction; sideways
+-- and backwards are just slower (see directionSpeedScale).
 function MovementController:wantsSprint(): boolean
-	return self.input.isDown("Sprint")
-		and self.wishDir ~= Vector3.zero
-		and self.wishDir:Dot(self.forward) > Config.SprintForwardDot
+	return self.input.isDown("Sprint") and self.wishDir ~= Vector3.zero
+end
+
+-- How much of a state's top speed is available in the direction the player
+-- is pushing: 1 straight ahead, StrafeSpeedScale flat sideways,
+-- BackSpeedScale straight back, blended smoothly in between.
+function MovementController:directionSpeedScale(): number
+	if self.wishDir == Vector3.zero then
+		return 1
+	end
+	-- The dot product is 1 when pushing straight ahead, 0 sideways, -1 back.
+	local ahead = self.wishDir:Dot(self.forward)
+	local strafe = Config.StrafeSpeedScale
+	if ahead >= 0 then
+		return strafe + (1 - strafe) * ahead
+	end
+	return strafe + (Config.BackSpeedScale - strafe) * -ahead
+end
+
+-- What the crouch key is asking for right now:
+--   "tap"   it was pressed and let go quickly (crouch / slide / stand up)
+--   "hold"  it has been kept down long enough (prone / dive)
+--   nil     neither
+-- The state that acts on it must call input.consume("Crouch").
+function MovementController:crouchKey(): string?
+	if self.input.tapped("Crouch", Config.CrouchHoldTime, Config.Buffer.Slide) then
+		return "tap"
+	end
+	if self.input.heldFor("Crouch") >= Config.CrouchHoldTime then
+		return "hold"
+	end
+	return nil
 end
 
 -- Is there room above to stand up?
@@ -286,8 +320,10 @@ end
 -- The side part is braked hard by TurnFriction, so turning does not slide
 -- like ice. The along part speeds up with `accel` or slows with `decel`
 -- (or `overDecel`, if given, when above the target speed), and if it is
--- negative (the player reversed) it is braked by TurnFriction first.
+-- negative (the player is pushing against their own momentum: a reversal,
+-- or "counter-strafe") it is braked by ReverseDecel first.
 function MovementController:accelerate(targetSpeed: number, accel: number, decel: number, dt: number, overDecel: number?)
+	targetSpeed *= self:directionSpeedScale()
 	local wish = self.wishDir
 	if wish == Vector3.zero then
 		self.velocity = moveToward(self.velocity, Vector3.zero, decel * dt)
@@ -299,10 +335,16 @@ function MovementController:accelerate(targetSpeed: number, accel: number, decel
 	side = moveToward(side, Vector3.zero, Config.TurnFriction * dt)
 
 	if along < targetSpeed then
-		local rate = if along < 0 then Config.TurnFriction else accel
+		local rate = if along < 0 then Config.ReverseDecel else accel
 		along = math.min(along + rate * dt, targetSpeed)
 	else
-		along = math.max(along - (overDecel or decel) * dt, targetSpeed)
+		-- The gentle `overDecel` is for extra speed carried straight ahead
+		-- (slide-hop, vault). The further the push is from straight ahead,
+		-- the more the ordinary `decel` takes over, so forward sprint speed
+		-- cannot be carried into a strafe or a backpedal.
+		local ahead = math.max(wish:Dot(self.forward), 0)
+		local rate = if overDecel then decel + (overDecel - decel) * ahead else decel
+		along = math.max(along - rate * dt, targetSpeed)
 	end
 
 	self.velocity = wish * along + side
@@ -313,7 +355,9 @@ function MovementController:airSteer(dt: number)
 	if self.wishDir == Vector3.zero then
 		return
 	end
-	local carrySpeed = math.max(self.velocity.Magnitude, Config.WalkSpeed)
+	-- Below walk speed, steering may build up to walk speed in that
+	-- direction (slower sideways and backwards, as on the ground).
+	local carrySpeed = math.max(self.velocity.Magnitude, Config.WalkSpeed * self:directionSpeedScale())
 	self.velocity = moveToward(self.velocity, self.wishDir * carrySpeed, Config.AirAccel * dt)
 end
 
@@ -338,7 +382,9 @@ function MovementController:_readInput()
 	-- wishOverride; the direction pushed then also counts as "forward".
 	if self.wishOverride then
 		wish = self.wishOverride
-		if wish.Magnitude > 0.01 then
+		if self.forwardOverride then
+			self.forward = self.forwardOverride
+		elseif wish.Magnitude > 0.01 then
 			self.forward = wish.Unit
 		end
 	end
@@ -396,14 +442,17 @@ end
 -- Humanoid's Jumping state is switched off. That blocks Roblox's own jump
 -- as well as ours. A press during the cooldown stays remembered for the
 -- usual buffer time, so a press just before the cooldown ends still jumps.
+-- The same switch is used while a state has blocksJump (for example prone,
+-- where Space means "get up", not "jump").
 function MovementController:_handleJump()
 	local cooling = os.clock() - self._jumpLandedAt < Config.JumpCooldown
-	if cooling ~= self._jumpCooling then
-		self._jumpCooling = cooling
-		self.humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, not cooling)
+	local off = cooling or self.state.blocksJump == true
+	if off ~= self._jumpOff then
+		self._jumpOff = off
+		self.humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, not off)
 	end
 
-	if self._jumped or cooling or self.state.blocksJump then
+	if self._jumped or off then
 		return
 	end
 	if not self.input.isBuffered("Jump", Config.Buffer.Jump) then
@@ -432,12 +481,14 @@ function MovementController:_handleQuickTurn()
 	end
 end
 
--- Ground roll: crouch double-tapped while on the ground.
+-- Ground roll: the roll key pressed while moving on the ground. Standing
+-- still does not roll.
 function MovementController:_checkGroundRoll(): string?
 	if
 		self.state.allowsGroundRoll
 		and self.grounded
-		and self.input.doubleTapped("Crouch", Config.Roll.DoubleTapWindow, Config.Buffer.Slide)
+		and self:getSpeed() > 1
+		and self.input.isBuffered("Roll", Config.Buffer.Roll)
 	then
 		return "Roll"
 	end
@@ -487,22 +538,28 @@ function MovementController:_reconcileBlocked()
 	end
 end
 
-function MovementController:_applyCrouchHeight(dt: number)
+-- Lower or raise the body toward the height the current state asks for:
+-- prone, crouched or standing. "Drop" is how many studs lower than standing.
+function MovementController:_applyBodyHeight(dt: number)
 	local crouch = Config.Crouch
-	local target = if self.crouched then 1 else 0
-	local step = crouch.TransitionRate * dt
-	if self._crouchAlpha < target then
-		self._crouchAlpha = math.min(self._crouchAlpha + step, target)
-	else
-		self._crouchAlpha = math.max(self._crouchAlpha - step, target)
-	end
+	local prone = Config.Prone
+	local target = if self.prone then prone.Drop elseif self.crouched then crouch.Drop else 0
 
 	-- Work out the standing hip height from the current one, so this keeps
 	-- working if the avatar's size changes after spawning.
 	local humanoid = self.humanoid
 	local standing = humanoid.HipHeight + self._appliedDrop
-	local maxDrop = math.max(math.min(crouch.Drop, standing - crouch.MinHipHeight), 0)
-	local drop = maxDrop * self._crouchAlpha
+	target = math.clamp(target, 0, math.max(standing - crouch.MinHipHeight, 0))
+
+	-- Going into prone, and coming back up out of it, is deliberately slow.
+	local inProneRange = self.prone or self._appliedDrop > crouch.Drop + 0.01
+	local step = (if inProneRange then prone.TransitionRate else crouch.TransitionRate) * dt
+	local drop = self._appliedDrop
+	if drop < target then
+		drop = math.min(drop + step, target)
+	else
+		drop = math.max(drop - step, target)
+	end
 	humanoid.HipHeight = standing - drop
 	self._appliedDrop = drop
 end
@@ -547,7 +604,7 @@ function MovementController:_update(dt: number)
 		self:setState(nextState)
 	end
 
-	self:_applyCrouchHeight(dt)
+	self:_applyBodyHeight(dt)
 	if not self.state.controlsBody then
 		self:_applyToHumanoid()
 	end
