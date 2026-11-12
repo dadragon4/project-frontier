@@ -41,6 +41,13 @@ return {
 	-- Moving sideways or backwards is slower than moving straight ahead, in
 	-- every ground state (walk, sprint, crouch, prone). These are the share
 	-- of the state's top speed you get; directions in between are blended.
+	-- Pressing sprint while already strafing (moving sideways) goes straight
+	-- to sprint-strafe speed with no build-up, for quick strafes (user ruling
+	-- 2026-11-12). "Sideways" means the push is at least this far from
+	-- straight ahead or straight back: 0.5 = more than 60 degrees off, so
+	-- pure left/right counts and forward diagonals do not. 0 = only exactly
+	-- sideways; 1 = any direction.
+	StrafeSprintSnapDot = 0.5,
 	StrafeSpeedScale = 0.85, -- flat sideways
 	BackSpeedScale = 0.6, -- straight back
 
@@ -89,11 +96,25 @@ return {
 		-- Only matters when it is longer than Cooldown above.
 		BoostCooldown = 1.0,
 		MaxSpeed = 34,
+		-- Top speed while sliding DOWN A SLOPE (user ruling 2026-11-12). The
+		-- slide stops gaining speed here, and a slide that arrives on a slope
+		-- faster than this is trimmed to it. Higher = faster ramp slides.
+		SlopeMaxSpeed = 28,
+		-- The same cap for a slide that was started while in FLOW.
+		FlowSlopeMaxSpeed = 30,
+		-- The furthest a slide may travel on flat ground, in studs (user
+		-- ruling 2026-11-12). Friction normally ends it sooner; this is the
+		-- limit however fast it started. Distance covered on a slope does
+		-- not count. Higher = longer flat slides allowed.
+		MaxFlatDistance = 25,
 		Friction = 22, -- speed lost per second on flat ground (higher = shorter slide)
 		SlopeAccel = 45, -- speed gained per second on a (theoretical) vertical slope
 		EndSpeed = 10, -- slide ends (into crouch or walk) when speed falls below this
 		MinTime = 0.25, -- cannot cancel a slide (with crouch or sprint) before this
-		SteerRate = 1.2, -- how fast the slide direction can turn, radians per second
+		-- How fast the slide direction can turn, radians per second. 1.287 is
+		-- about 74 degrees per second (was 1.2, about 69; raised by 5 degrees
+		-- per second, user ruling 2026-11-12). Higher = the slide steers more.
+		SteerRate = 1.287,
 		-- Sliding down a slope at least this steep (degrees) has no friction
 		-- and does not end until the slope levels out.
 		SlopeMinAngle = 5,
@@ -148,7 +169,9 @@ return {
 		SprintDrain = 8,
 		-- Points per second while wall-running (user ruling 2026-11-11; the
 		-- value is the agent's guess). At 10, the longest wall-run (1.3 s)
-		-- costs 13. Running out ends the run.
+		-- costs 13. Momentum takes up to half off, as for the costs below,
+		-- measured when the run starts. A run that has started always
+		-- finishes, even if stamina runs out during it (user rulings 2026-11-12).
 		WallRunDrain = 10,
 		-- Points per second while hanging from a ledge (user ruling
 		-- 2026-11-11; the value is the agent's guess). At 5, a full bar is 20
@@ -193,15 +216,21 @@ return {
 	Flow = {
 		-- Seconds allowed between one action finishing and the next
 		-- beginning. Higher = more forgiving chains.
-		Window = 2,
+		Window = 3,
 		-- Every this many counted actions, the chain pays Reward. The same
 		-- action twice in a row counts once. Lower = easier rewards.
 		MinActions = 3,
-		Reward = 5, -- stamina points per payout
+		Reward = 25, -- stamina points per payout
 		-- The most one chain can pay in total. After that it pays nothing
 		-- until it has ended and a new chain begins. This is what stops a
-		-- repeated loop of moves from producing stamina for ever.
-		MaxRewardPerChain = 10,
+		-- repeated loop of moves from producing stamina for ever. Equal to
+		-- Reward, so a chain pays once: when it is completed.
+		MaxRewardPerChain = 25,
+		-- Being "in FLOW" (user rulings 2026-11-12): from the moment a chain
+		-- reaches MinActions (the hidden FLOW meter is at 100%) until the
+		-- chain ends. While it lasts:
+		SprintSpeedAdd = 5, -- sprint top speed goes up by this (walk, crouch and crawl do not)
+		FovAdd = 5, -- the view widens by this many degrees
 		-- An action that lasted less than this (dropped the instant it
 		-- began) does not count. Seconds. (Agent's guess.)
 		MinActionTime = 0.15,

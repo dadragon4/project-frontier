@@ -211,14 +211,121 @@ local function run(input, c): string
 			tap("Crouch")
 			local slid = sawState("Slide", 0.3)
 			release("Sprint")
-			local startSpeed = c:getSpeed()
 			task.wait(0.7)
+			-- No friction on the slope, so it sits at the slope's speed cap.
+			local cap = Config.Slide.SlopeMaxSpeed
 			check(
-				"slide keeps its speed down a slope",
-				slid and c.stateName == "Slide" and c:getSpeed() >= startSpeed,
-				string.format("%s, %.1f then %.1f", c.stateName, startSpeed, c:getSpeed())
+				"slide holds the slope speed cap down a slope",
+				slid and c.stateName == "Slide" and near(c:getSpeed(), cap, 0.5),
+				string.format("%s at %.1f (cap %d)", c.stateName, c:getSpeed(), cap)
 			)
 			check("slope slide ends in crouch on the flat", sawState("Crouch", 4) and heightAboveCourse() < 1, now())
+		end,
+
+		function() -- a slope slide started in FLOW has the higher cap
+			place(45, 20, 13.3)
+			c.flow.count = Config.Flow.MinActions -- as if a chain had just been completed
+			c.flow.lastEndedAt = os.clock()
+			move(SOUTH)
+			hold("Sprint")
+			task.wait(0.6)
+			tap("Crouch")
+			local slid = sawState("Slide", 0.3)
+			release("Sprint")
+			task.wait(0.7)
+			local cap = Config.Slide.FlowSlopeMaxSpeed
+			check(
+				"a slope slide started in FLOW has the higher cap",
+				slid and c.stateName == "Slide" and near(c:getSpeed(), cap, 0.5),
+				string.format("%s at %.1f (cap %d)", c.stateName, c:getSpeed(), cap)
+			)
+			sawState("Crouch", 4)
+		end,
+
+		function() -- a flat slide never travels further than Slide.MaxFlatDistance
+			tune(Config.Slide, "Friction", 0) -- without the limit this slide would never end
+			place(0, 120)
+			move(NORTH)
+			hold("Sprint")
+			task.wait(1.2)
+			tap("Crouch")
+			local slid = sawState("Slide", 0.3)
+			local startZ = courseZ()
+			release("Sprint")
+			local ended = waitFor(function()
+				return c.stateName ~= "Slide"
+			end, 3)
+			local travelled = startZ - courseZ()
+			local limit = Config.Slide.MaxFlatDistance
+			check(
+				"a flat slide stops within the distance limit",
+				slid and ended and travelled > limit - 4 and travelled < limit + 2,
+				string.format("%.1f studs (limit %d)", travelled, limit)
+			)
+		end,
+
+		function() -- in FLOW: faster sprint, wider view; both end with the chain
+			tune(Config.Stamina, "SprintDrain", 0)
+			local camera = workspace.CurrentCamera
+			place(0, 120)
+			move(NORTH)
+			hold("Sprint")
+			task.wait(1.5)
+			local normalSpeed, normalFov = c:getSpeed(), camera.FieldOfView
+			c.flow.count = Config.Flow.MinActions
+			c.flow.lastEndedAt = os.clock()
+			task.wait(1.5)
+			local flowSpeed, flowFov = c:getSpeed(), camera.FieldOfView
+			check(
+				"in FLOW the sprint is faster and the view wider",
+				near(flowSpeed, normalSpeed + Config.Flow.SprintSpeedAdd, 0.5) and flowFov > normalFov + 2,
+				string.format("speed %.1f -> %.1f, FOV %.1f -> %.1f", normalSpeed, flowSpeed, normalFov, flowFov)
+			)
+			-- Sprinting is not a FLOW action, so the chain runs out.
+			waitFor(function()
+				return not c.flow:inFlow()
+			end, Config.Flow.Window + 1)
+			task.wait(1.2)
+			check(
+				"the FLOW speed goes when the chain ends",
+				not c.flow:inFlow() and near(c:getSpeed(), Config.SprintSpeed, 0.5),
+				string.format("%.1f", c:getSpeed())
+			)
+			release("Sprint")
+		end,
+
+		function() -- pressing sprint while strafing skips the build-up
+			place(0, 120)
+			c.forwardOverride = NORTH -- looking up the course, moving sideways
+			move(EAST)
+			task.wait(0.6)
+			hold("Sprint")
+			local sprinting = sawState("Sprint", 0.5)
+			local target = Config.SprintSpeed * Config.StrafeSpeedScale
+			check(
+				"sprint pressed while strafing is at full strafe speed at once",
+				sprinting and near(c:getSpeed(), target, 0.5),
+				string.format("%.1f (sprint-strafe speed %.1f)", c:getSpeed(), target)
+			)
+			release("Sprint")
+			-- The body follows the jump in speed (it is not mistaken for a wall).
+			hold("Sprint")
+			task.wait(0.4)
+			check("the body follows the snap", near(c:getActualSpeed(), target, 1.5), string.format("actual %.1f", c:getActualSpeed()))
+			release("Sprint")
+
+			place(0, 120)
+			move(NORTH)
+			task.wait(0.6)
+			hold("Sprint")
+			sprinting = sawState("Sprint", 0.5)
+			check(
+				"sprint pressed while walking forward still builds up",
+				sprinting and c:getSpeed() < Config.SprintSpeed - 4,
+				string.format("%.1f", c:getSpeed())
+			)
+			release("Sprint")
+			c.forwardOverride = nil
 		end,
 
 		function() -- crouch toggle
@@ -957,8 +1064,8 @@ local function run(input, c): string
 			-- Slide (1), jump out of it (2), wall-run (3: pays), wall jump (4).
 			check(
 				"slide, jump, wall-run, wall jump: a chain of four, paid once",
-				slid and ran and c.flow.count == 4 and c.lastFlowReward == flow.Reward,
-				string.format("%d actions, last reward %d", c.flow.count, c.lastFlowReward)
+				slid and ran and c.flow.count == 4 and c.lastFlowReward == flow.Reward and c.flow:inFlow() and c.flow:meter() == 1,
+				string.format("%d actions, last reward %d, meter %.0f%%", c.flow.count, c.lastFlowReward, c.flow:meter() * 100)
 			)
 			check(
 				"the momentum discount and the chain reward both apply, separately",
@@ -975,7 +1082,11 @@ local function run(input, c): string
 				return c.airTime == 0 and c.stateName == "Walk"
 			end, 3)
 			task.wait(flow.Window + 0.4)
-			check("the chain ends when its window runs out", c.flow.count == 0, c.flow.count .. " actions")
+			check(
+				"the chain ends when its window runs out, and FLOW with it",
+				c.flow.count == 0 and c.flow:meter() == 0 and not c.flow:inFlow(),
+				c.flow.count .. " actions"
+			)
 		end,
 
 		function() -- FLOW chain on the course: slide, jump, mantle
@@ -1114,20 +1225,22 @@ local function run(input, c): string
 			task.wait(0.5)
 			local elapsed = os.clock() - started
 			local stillRunning = c.stateName == "WallRun"
-			local expected = Config.Stamina.WallRunDrain * elapsed
+			-- Arriving at a sprint, momentum takes a share off the drain.
+			local expected = Config.Stamina.WallRunDrain * c.drainScale * elapsed
 			check(
-				"wall-running drains stamina at the set rate",
-				ran and stillRunning and near(before - s.current, expected, 1),
-				string.format("%.1f in %.2f s (expected %.1f)", before - s.current, elapsed, expected)
+				"wall-running drains stamina at the set rate, less the momentum discount",
+				ran and stillRunning and c.drainScale < 0.9 and near(before - s.current, expected, 1),
+				string.format(
+					"%.1f in %.2f s (expected %.1f, %.0f%% off)",
+					before - s.current,
+					elapsed,
+					expected,
+					(1 - c.drainScale) * 100
+				)
 			)
 			s:set(0)
-			check(
-				"running out of stamina ends the wall-run",
-				waitFor(function()
-					return c.stateName ~= "WallRun"
-				end, 0.3),
-				now()
-			)
+			task.wait(0.3)
+			check("a wall-run that has started finishes even with no stamina", c.stateName == "WallRun", now())
 
 			runUp()
 			s:set(0)

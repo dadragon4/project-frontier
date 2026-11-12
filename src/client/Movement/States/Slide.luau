@@ -3,8 +3,9 @@
 -- (the Air state takes over as soon as the character leaves the ground).
 --
 -- Started by tapping crouch while sprinting; the key does not need to be
--- held. On flat ground it ends, crouched, when the speed runs out. Down a
--- slope there is no friction and it carries on until the slope levels out.
+-- held. On flat ground it ends, crouched, when the speed runs out or after
+-- Slide.MaxFlatDistance studs. Down a slope there is no friction and it
+-- carries on until the slope levels out, at no more than Slide.SlopeMaxSpeed.
 -- Pressing crouch again ends it early (into a crouch); so does jumping.
 -- Pressing sprint again cuts it short, straight back into a sprint.
 -- The roll key does nothing during a slide (user ruling 2026-11-11).
@@ -24,6 +25,9 @@ function Slide.enter(ctx)
 	-- The crouch press that started this slide has now been used.
 	ctx.input.consume("Crouch")
 	ctx.slideStartedAt = os.clock()
+	-- A slide started while in FLOW has a higher top speed on slopes.
+	ctx.slideInFlow = ctx.flow:inFlow()
+	ctx.slideFlatDistance = 0 -- studs travelled on flat ground so far
 
 	local speed = ctx:getSpeed()
 	local direction = if speed > 0.01 then ctx.velocity / speed else ctx.forward
@@ -80,7 +84,17 @@ function Slide.update(ctx, dt: number): string?
 	end
 
 	speed = math.clamp(speed, 0, slide.MaxSpeed)
+	if onDownSlope then
+		speed = math.min(speed, if ctx.slideInFlow then slide.FlowSlopeMaxSpeed else slide.SlopeMaxSpeed)
+	else
+		ctx.slideFlatDistance += speed * dt
+	end
 	ctx.velocity = direction * speed
+
+	-- A flat slide never travels further than MaxFlatDistance.
+	if ctx.slideFlatDistance >= slide.MaxFlatDistance then
+		return "Crouch"
+	end
 
 	-- Out of speed: the slide ends in a crouch. (Not on a downward slope,
 	-- where it keeps going until the slope levels out.)
