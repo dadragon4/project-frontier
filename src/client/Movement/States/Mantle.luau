@@ -9,6 +9,7 @@
 -- Then the Humanoid is handed back and normal movement resumes.
 
 local Mantle = {
+	flowAction = "Mantle", -- counts toward a FLOW chain
 	controlsBody = true,
 	blocksJump = true,
 }

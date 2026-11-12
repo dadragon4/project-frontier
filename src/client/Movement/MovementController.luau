@@ -20,13 +20,28 @@
 --     allowsGroundRoll = true         optional: the roll key rolls from here
 --     allowsClamber = true            optional: vault / mantle / ledge grab
 --                                     can start from this state
+--     staminaCost = "Slide"           optional: entering the state costs
+--                                     stamina (a key of Config.Stamina.Costs)
+--     staminaDrain = "SprintDrain"    optional: being in the state drains
+--                                     stamina, at that rate per second (a
+--                                     key of Config.Stamina)
+--     flowAction = "Slide"            optional: the state counts toward a
+--                                     FLOW chain under this name
 -- where ctx is this controller.
+--
+-- Stamina and FLOW: the rules live in Shared/Stamina and Shared/FlowChain.
+-- States only carry the three labels above; all charging happens here, in
+-- setState, the one place every change of state goes through. So an action
+-- is charged exactly once, and a change that never happens costs nothing.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 
-local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"):WaitForChild("MovementConfig"))
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Config = require(Shared:WaitForChild("Config"):WaitForChild("MovementConfig"))
+local Stamina = require(Shared:WaitForChild("Stamina"))
+local FlowChain = require(Shared:WaitForChild("FlowChain"))
 local Settings = require(script.Parent.Parent:WaitForChild("Settings"))
 local Detection = require(script.Parent:WaitForChild("Detection"))
 
@@ -104,6 +119,14 @@ function MovementController.new(character: Model, input)
 	self.quickTurnRemaining = 0 -- radians of quick-turn still to apply; the camera does the turning
 	self.airPeakY = 0 -- highest the feet have been during the current time in the air
 	self.lastFallHeight = 0 -- how far the feet dropped (peak to landing) on the most recent landing
+
+	-- Simulated on this client for now, like the movement itself. The
+	-- server will run the same two modules to check it (M1.4).
+	self.stamina = Stamina.new(Config.Stamina)
+	self.flow = FlowChain.new(Config.Flow)
+	self.lastMomentumDiscount = 0 -- share taken off the most recent action's cost (debug readout, tests)
+	self.lastFlowReward = 0 -- stamina the most recent chain payout gave (debug readout, tests)
+	self._flowQueue = {} -- instant FLOW actions waiting for the current change of state to finish
 
 	self.stateName = ""
 	self.state = nil
@@ -212,14 +235,35 @@ function MovementController:setState(name: string)
 	end
 
 	local previous = self.stateName
-	if self.state and self.state.exit then
-		self.state.exit(self)
+	local previousState = self.state
+	local newState = States[name]
+	local now = os.clock()
+
+	-- Charge the new state's stamina cost first: the old state's exit and
+	-- the new state's enter both change the velocity (a slide adds its
+	-- boost, a vault zeroes it), and the momentum discount must be measured
+	-- on the speed the player arrived with.
+	if newState.staminaCost then
+		self.lastMomentumDiscount = self:momentumDiscount()
+		local cost = Config.Stamina.Costs[newState.staminaCost]
+		self.stamina:spend(Stamina.discountedCost(cost, self.lastMomentumDiscount))
+	end
+
+	if previousState and previousState.exit then
+		previousState.exit(self)
+	end
+	-- The old state's action is over: it may complete a FLOW chain.
+	if previousState and previousState.flowAction then
+		self:_payFlow(self.flow:finish(previousState.flowAction, self.stateTime, now))
 	end
 
 	self.stateName = name
-	self.state = States[name]
+	self.state = newState
 	self.stateTime = 0
 	self.prone = name == "Prone" or name == "Dive"
+	if newState.flowAction then
+		self.flow:begin(newState.flowAction, now)
+	end
 
 	local controlling = self.state.controlsBody == true
 	if controlling then
@@ -230,12 +274,58 @@ function MovementController:setState(name: string)
 	if self.state.enter then
 		self.state.enter(self, previous)
 	end
+
+	-- Instant FLOW actions reported during this change (a wall jump, a
+	-- jump out of a slide) are counted last, so the chain sees them after
+	-- the action they ended: "wall-run, then wall jump", not the reverse.
+	for _, action in self._flowQueue do
+		self:_payFlow(self.flow:instant(action, now))
+	end
+	table.clear(self._flowQueue)
+end
+
+-- The share of an action's stamina cost that the player's momentum would
+-- take off if the action started right now. See Stamina.qualifyingSpeed
+-- for what counts as momentum.
+function MovementController:momentumDiscount(): number
+	local speed = Stamina.qualifyingSpeed(self.velocity, self.root.AssemblyLinearVelocity, self.forward)
+	return Stamina.momentumDiscount(speed, Config.SprintSpeed, Config.Stamina.MomentumMaxDiscount)
+end
+
+-- For states to report a FLOW action that is not a state of its own.
+-- Call it just before, or while, changing state.
+function MovementController:flowInstant(action: string)
+	table.insert(self._flowQueue, action)
+end
+
+function MovementController:_payFlow(reward: number)
+	if reward > 0 then
+		self.lastFlowReward = reward
+		self.stamina:refund(reward)
+	end
 end
 
 -- Is the player asking to sprint? Sprint works in any direction; sideways
 -- and backwards are just slower (see directionSpeedScale).
+-- Not while exhausted: see canUseStamina.
 function MovementController:wantsSprint(): boolean
-	return self.input.isDown("Sprint") and self.wishDir ~= Vector3.zero
+	return self.input.isDown("Sprint") and self.wishDir ~= Vector3.zero and self:canUseStamina()
+end
+
+-- May the player start something that needs stamina? Not while exhausted
+-- (user ruling 2026-11-11): from running out until stamina is back up to
+-- Stamina.RecoverAt, there is no sprint, slide, dive, roll, wall-run or
+-- ledge hang. Walking, crouching, crawling, jumping, vaulting and mantling
+-- need no stamina and still work.
+-- With some stamina left, but less than an action costs, the action still
+-- starts: it takes what is left, and that is what exhausts the player.
+function MovementController:canUseStamina(): boolean
+	return not self.stamina.exhausted
+end
+
+-- Can a dive start right now?
+function MovementController:canDive(): boolean
+	return self:getSpeed() >= Config.Dive.MinSpeed and self:canUseStamina()
 end
 
 -- How much of a state's top speed is available in the direction the player
@@ -252,6 +342,16 @@ function MovementController:directionSpeedScale(): number
 		return strafe + (1 - strafe) * ahead
 	end
 	return strafe + (Config.BackSpeedScale - strafe) * -ahead
+end
+
+-- Can a slide start right now? Fast enough, not exhausted, and not straight
+-- after the previous slide (Slide.Cooldown stops sprint and slide being
+-- spammed).
+function MovementController:canSlide(): boolean
+	local slide = Config.Slide
+	return self:getSpeed() >= slide.MinSpeed
+		and os.clock() - self.lastSlideEnd >= slide.Cooldown
+		and self:canUseStamina()
 end
 
 -- What the crouch key is asking for right now:
@@ -322,8 +422,11 @@ end
 -- (or `overDecel`, if given, when above the target speed), and if it is
 -- negative (the player is pushing against their own momentum: a reversal,
 -- or "counter-strafe") it is braked by ReverseDecel first.
+--
+-- Exhaustion (no stamina left) lowers the target speed here, so it slows
+-- exactly the states that use this function, and nothing else.
 function MovementController:accelerate(targetSpeed: number, accel: number, decel: number, dt: number, overDecel: number?)
-	targetSpeed *= self:directionSpeedScale()
+	targetSpeed *= self:directionSpeedScale() * self.stamina:speedScale()
 	local wish = self.wishDir
 	if wish == Vector3.zero then
 		self.velocity = moveToward(self.velocity, Vector3.zero, decel * dt)
@@ -356,8 +459,10 @@ function MovementController:airSteer(dt: number)
 		return
 	end
 	-- Below walk speed, steering may build up to walk speed in that
-	-- direction (slower sideways and backwards, as on the ground).
-	local carrySpeed = math.max(self.velocity.Magnitude, Config.WalkSpeed * self:directionSpeedScale())
+	-- direction (slower sideways and backwards, as on the ground; and
+	-- slower when exhausted, or hopping would be a way round exhaustion).
+	local walkSpeed = Config.WalkSpeed * self:directionSpeedScale() * self.stamina:speedScale()
+	local carrySpeed = math.max(self.velocity.Magnitude, walkSpeed)
 	self.velocity = moveToward(self.velocity, self.wishDir * carrySpeed, Config.AirAccel * dt)
 end
 
@@ -488,6 +593,7 @@ function MovementController:_checkGroundRoll(): string?
 		self.state.allowsGroundRoll
 		and self.grounded
 		and self:getSpeed() > 1
+		and self:canUseStamina()
 		and self.input.isBuffered("Roll", Config.Buffer.Roll)
 	then
 		return "Roll"
@@ -516,10 +622,20 @@ function MovementController:_checkClamber(): string?
 	end
 
 	local obstacle = self:findObstacle()
+	-- An exhausted player cannot hold a ledge (see LedgeHang), so does not
+	-- grab one. Vaults and mantles are unaffected.
+	if obstacle and obstacle.kind == "LedgeHang" and not self:canUseStamina() then
+		obstacle = nil
+	end
 	if obstacle then
 		self.pendingObstacle = obstacle
-		-- Manual clambering will give a small stamina refund once stamina
-		-- exists (design decision 2026-11-10); nothing to refund yet.
+		-- Manual clambering gives a little stamina back (design decision
+		-- 2026-11-10). This point is only reached when the vault or mantle
+		-- is about to start, once per clamber. A ledge grab gives nothing:
+		-- grabbing, dropping and grabbing again could repeat it on the spot.
+		if manual and obstacle.kind ~= "LedgeHang" then
+			self.stamina:refund(Config.Stamina.ManualClamberRefund)
+		end
 		return obstacle.kind
 	end
 	return nil
@@ -603,6 +719,15 @@ function MovementController:_update(dt: number)
 	if nextState then
 		self:setState(nextState)
 	end
+
+	-- Sprinting and ledge hanging drain stamina. Because every spend
+	-- restarts the wait before stamina comes back, nothing comes back
+	-- while they last.
+	if self.state.staminaDrain then
+		self.stamina:spend(Config.Stamina[self.state.staminaDrain] * dt)
+	end
+	self.stamina:step(dt)
+	self.flow:update(os.clock())
 
 	self:_applyBodyHeight(dt)
 	if not self.state.controlsBody then

@@ -22,7 +22,7 @@ function Walk.update(ctx, dt: number): string?
 	if key == "tap" then
 		return "Crouch"
 	elseif key == "hold" then
-		return if ctx:getSpeed() >= config.Dive.MinSpeed then "Dive" else "Prone"
+		return if ctx:canDive() then "Dive" else "Prone"
 	end
 
 	if ctx:wantsSprint() then

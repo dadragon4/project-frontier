@@ -24,6 +24,7 @@ No conflicts (`Cn`) are open. What each source document said before a ruling is 
 | Q2 | Keyboard and mouse now, on a foundation for gamepad and touch. Gamepad and touch auto-clamber by default; manual is available to them in settings. | `MOVEMENT_SPEC.md` |
 | Q7 | Animations are placeholders for now. | — |
 | — | Movement controls (crouch tap/hold, prone, dive, roll on Ctrl/Command, slope slides, omnidirectional sprint, slide/roll/dive separate). | `MOVEMENT_SPEC.md` |
+| — | 2026-11-11: wall-running and hanging from a ledge drain stamina, and at zero the run ends or the player lets go; an exhausted player cannot use anything that needs stamina; no roll out of a slide; pressing sprint again during a slide cuts into a sprint; a cooldown between slides stops sprint/slide spam. | `MOVEMENT_SPEC.md` |
 
 ## Open questions for Milestone 1
 
@@ -31,10 +32,10 @@ No conflicts (`Cn`) are open. What each source document said before a ruling is 
 | :-- | :-- | :-- | :-- |
 | Q3 | Character | Custom rig, visible body, hands visible when unarmed. The prototype's standard R15 rig is a placeholder. | Who builds the custom rig. |
 | Q4 | Vault and mantle input | Automatic or manual by player setting; manual uses Space and earns a small stamina refund; keyboard defaults to automatic. Obstacles under about 2 studs are steps, not vaults. | Vaulting "under". |
-| Q5 | Stamina | Sprinting, sliding, diving and rolling cost it. Zero stamina slows the player, never disables movement. A heavy scavenged load drains it a little faster. | Deferred by the user: recovery and every number. See `MOVEMENT_SPEC.md`. |
+| Q5 | Stamina and FLOW | Sprinting, sliding, diving and rolling cost it. Running out exhausts the player until stamina is back to the recovery threshold: slowed, and unable to sprint, slide, dive, roll, wall-run or hold a ledge (user, 2026-11-11, replacing "reduced, never disabled"). Walking, jumping, vaulting and mantling always work. Wall-running and ledge hanging drain stamina. A heavy scavenged load drains it a little faster. Two separate rewards (user, 2026-11-11): momentum makes a single action cheaper; a FLOW chain of linked abilities gives a little stamina back, with a limit per chain. A plain jump does not count toward a chain; a jump out of a slide and a wall jump do. Manual vaults and mantles get a refund and also count toward a chain; a ledge grab gets no refund. Built with the user's initial tuning values. | Final values (the wall-run drain, ledge-hang drain and slide cooldown values are the agent's guesses); whether vault, mantle and jump should cost anything; how players see stamina. See `MOVEMENT_SPEC.md`. |
 | Q6 | Weight | Threshold-based: slower sprint acceleration, lower stamina regeneration, less chance for increased momentum, lower top speed. Near maximum carry weight, stamina is capped at 20%. | Threshold, maximum and penalty values; whether non-equipment items weigh anything. |
 
-Agent's readings awaiting confirmation are marked "to confirm" in `MOVEMENT_SPEC.md` (air-roll height, roll from slide/crouch, mantle height).
+Agent's readings awaiting confirmation are marked "to confirm" in `MOVEMENT_SPEC.md` (air-roll height, roll from a crouch, mantle height).
 
 ## Questions for later phases
 

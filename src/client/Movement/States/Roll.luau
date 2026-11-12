@@ -8,7 +8,10 @@
 -- camera turns over once. When the roll finishes, the next state depends on
 -- what is held.
 
-local Roll = {}
+local Roll = {
+	staminaCost = "Roll", -- paid once, when the roll starts
+	flowAction = "Roll", -- counts toward a FLOW chain
+}
 
 local function smoothstep(t: number): number
 	t = math.clamp(t, 0, 1)

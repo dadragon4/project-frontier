@@ -11,15 +11,17 @@ default.project.json                 Rojo mapping (below)
 tools/studio.py                      drives Studio from the command line; `test` runs the scripted checks
 src/shared/Config/MovementConfig     every movement tuning number
 src/shared/Config/DevConfig          test-course, debug-readout and test switches
+src/shared/Stamina                   stamina rules, numbers only: spend, refund, recovery, exhaustion, momentum discount
+src/shared/FlowChain                 FLOW chain rules, numbers only: which linked actions count, the window, the reward
 src/client/Main.client               starts everything when the character spawns
 src/client/Input                     actions ("Sprint", "Crouch", ...) mapped to keys; press buffering
 src/client/Settings                  the player's own preferences (not saved yet)
 src/client/UI/SettingsPanel          settings window on P
 src/client/Camera/FirstPersonCamera  first-person view and all camera feel effects
-src/client/Movement/MovementController   per-frame loop: input, ground, jump, speed rules, runs the current state
+src/client/Movement/MovementController   per-frame loop: input, ground, jump, speed rules, runs the current state; charges stamina and counts FLOW actions in setState
 src/client/Movement/Detection        raycast checks: obstacles to vault/mantle/hang from, wall-run walls, room to stand
 src/client/Movement/States/*         one file per state: Walk, Sprint, Crouch, Slide, Air, Roll, Mantle, Vault, LedgeHang, WallRun, Prone, Dive
-src/client/Movement/DebugReadout     on-screen state and speed
+src/client/Movement/DebugReadout     on-screen state, speed, stamina and FLOW
 src/client/Dev/MovementTests         scripted movement checks on the test course
 src/server/TestCourse.server         builds the greybox course at server start
 src/server/CharacterCollision.server stops players' arms and legs colliding with the world
@@ -78,7 +80,7 @@ The rules (what the server decides, what the client handles, what every remote m
 **Not built yet [Proposed]:**
 
 - **Server checks.** The client simulates its own character so movement feels instant; the server checks that what it sees is plausible (speed limits per state, no impossible position jumps, stamina tracked on the server too) and corrects or flags violations. Before writing this, check the official documentation for Roblox's built-in server-authoritative movement; if it is production-ready it could replace hand-written checks.
-- **Stamina and weight** as small pure modules (numbers in, numbers out) that are easy to test.
+- **Weight** as a small pure module (numbers in, numbers out) that is easy to test, as stamina and FLOW now are (`src/shared/Stamina`, `src/shared/FlowChain`).
 - **Gamepad and touch** bindings in the Input module; movement code does not change.
 
 ## Physics [Established]

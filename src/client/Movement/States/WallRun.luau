@@ -14,6 +14,8 @@
 local Workspace = game:GetService("Workspace")
 
 local WallRun = {
+	flowAction = "WallRun", -- counts toward a FLOW chain
+	staminaDrain = "WallRunDrain", -- costs stamina for as long as it lasts
 	controlsBody = true,
 	blocksJump = true,
 }
@@ -61,6 +63,8 @@ function WallRun.update(ctx, dt: number): string?
 
 	if input.pressedSince("Jump", run.startedAt + 0.05) then
 		input.consume("Jump")
+		-- A wall jump is a FLOW action of its own, after the wall-run.
+		ctx:flowInstant("WallJump")
 		local up = math.sqrt(2 * Workspace.Gravity * config.WallJumpHeight)
 		local horizontal = run.normal * config.WallJumpOut + run.direction * run.speed * config.WallJumpKeep
 		run.exitVelocity = horizontal + Vector3.new(0, up, 0)
@@ -80,9 +84,14 @@ function WallRun.update(ctx, dt: number): string?
 		return "Air"
 	end
 
-	-- Reached a floor, or ran out of time or speed?
+	-- Reached a floor, or ran out of time, speed or stamina?
 	local floor = Workspace:Raycast(root.Position, Vector3.new(0, -(ctx:getStandingRootHeight() + 0.3), 0), ctx.rayParams)
-	if floor or ctx.stateTime >= config.MaxDuration or run.speed < config.MinSpeed * 0.5 then
+	if
+		floor
+		or ctx.stateTime >= config.MaxDuration
+		or run.speed < config.MinSpeed * 0.5
+		or ctx.stamina.current <= 0
+	then
 		run.exitVelocity = run.direction * run.speed + Vector3.new(0, run.verticalSpeed, 0)
 		return "Air"
 	end

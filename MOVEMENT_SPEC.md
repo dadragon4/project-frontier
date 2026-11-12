@@ -42,7 +42,7 @@ As built:
 | Standing or walking | Crouch (stays crouched; tap again to stand) | Prone |
 | Sprinting | Slide (no need to keep the key down) | Dive, landing prone |
 | Crouched | Stand up | Prone |
-| Sliding | End the slide early, into a crouch | — |
+| Sliding | End the slide early, into a crouch (pressing sprint again ends it into a sprint) | — |
 | Prone | Stand up | — |
 
 - Holding sprint while moving stands you up from a crouch and runs.
@@ -57,7 +57,9 @@ Responsive and intuitive. For stealth, tactical positioning, getting under obsta
 
 - A momentum-based transition out of sprinting; players build speed first. Momentum is preserved where appropriate.
 - On flat ground it ends in a crouch. Down a slope it keeps going until the slope levels out, and can be ended early by jumping or pressing crouch.
-- Chains into other moves: slide into an obstacle → vault; slide → jump (slide-hop); slide → roll key → roll.
+- **Pressing sprint again during a slide cuts it straight back into a sprint** (user ruling 2026-11-11). It must be a new press: sprint is usually still held from the run-up, and holding it does not end the slide.
+- **Cooldown** (user ruling 2026-11-11): after a slide ends, another cannot start for 1 second (agent's guess at the value), so sprint and slide cannot be spammed. A crouch tap during the cooldown crouches instead, as it does when too slow to slide.
+- Chains into other moves: slide into an obstacle → vault; slide → jump (slide-hop). **There is no roll out of a slide** (user ruling 2026-11-11): the roll key does nothing while sliding.
 - Slide distance will depend on weight (longer when light; not built).
 - As built: a slope counts from `Slide.SlopeMinAngle` degrees; on it the slide has no friction.
 
@@ -78,11 +80,11 @@ Our own omnidirectional dive: hold crouch while sprinting to leap in the directi
 ### Roll [Established]
 
 - **Air roll:** press the roll key in the air and you roll on landing, but only after a fall of at least 6 studs. On a shorter fall the press does nothing.
-- **Ground roll:** press the roll key while walking, sprinting or sliding. Standing still does not roll. The roll goes in the direction you are pushing.
+- **Ground roll:** press the roll key while walking or sprinting. Standing still does not roll, and neither does sliding (user ruling 2026-11-11). The roll goes in the direction you are pushing.
 
 As built: the roll keeps your speed (within limits), lasts about half a second, keeps the body low, and turns the camera over once. Afterwards: sprint if sprint is held, otherwise walk.
 
-**Agent's readings, to confirm:** "height" is the drop from the highest point of the jump or fall to the landing spot. Rolling out of a slide was kept; rolling from a crouch was removed, since the ruling says "walking or sprinting".
+**Agent's readings, to confirm:** "height" is the drop from the highest point of the jump or fall to the landing spot. Rolling from a crouch was removed, since the ruling says "walking or sprinting".
 
 **Known risk with Command as the roll key:** macOS treats Command plus a letter as a shortcut (`Command+W` closes the window, `Command+Q` quits), and often fails to report other keys being released while Command is held. Untested; check in Studio and the Roblox player before relying on it.
 
@@ -112,11 +114,11 @@ Climb ledges, pipes and other structures, to escape, pursue and reach hidden are
 
 ### Ledge grab [Established]
 
-A ledge too tall to mantle and within reach is grabbed while airborne. While hanging: `Space` pulls up, crouch lets go, left/right shimmies along the ledge. **[Open]** whether hanging is time-limited or drains stamina; for now it is unlimited.
+A ledge too tall to mantle and within reach is grabbed while airborne. While hanging: `Space` pulls up, crouch lets go, left/right shimmies along the ledge. **Hanging drains stamina** (user ruling 2026-11-11): 5 per second as built (agent's guess at the value), and nothing comes back meanwhile. **At zero stamina the player lets go** (user ruling 2026-11-11). As built, an exhausted player also cannot grab a ledge until they have recovered, or they would grab and drop at once; a pull-up pressed at the last moment still happens.
 
 ### Wall-run [Established]
 
-An alternative route where conventional ones do not exist. As built: jump alongside a wall while moving along it fast enough and you run along it for a short time in a shallow arc. `Space` wall-jumps off; crouch drops off. It also ends when the wall ends, you reach the floor, or speed runs out. You cannot run the same wall twice before landing. Automatic in both clambering modes.
+An alternative route where conventional ones do not exist. As built: jump alongside a wall while moving along it fast enough and you run along it for a short time in a shallow arc. `Space` wall-jumps off; crouch drops off. It also ends when the wall ends, you reach the floor, or speed or stamina runs out. **Wall-running drains stamina** (user ruling 2026-11-11; see Stamina), and an exhausted player cannot start one. You cannot run the same wall twice before landing. Automatic in both clambering modes.
 
 ### Jump
 
@@ -128,16 +130,69 @@ Movement should feel physical, with a setting to reduce camera motion.
 
 As built: head bob scaled with speed (up-down and side-to-side; strafing rocks sideways more and bounces less); a landing dip that grows with fall height; a slight lean when strafing; a tilt away from the wall while wall-running; small downward looks during mantles and vaults; the camera turning over in a roll. **Reduce camera motion** removes all of these except a smaller landing dip and a smaller speed field-of-view change. Settings are not saved between sessions yet (Phase 5).
 
-## Stamina and momentum [Established] — not built
+## Stamina and FLOW [Established] — built 2026-11-11
+
+Design intent (user, 2026-11-11): **momentum rewards preparation, FLOW rewards execution, stamina rewards intelligent movement.**
 
 - Parkour consumes stamina: **sprinting, sliding, diving and rolling** cost it.
 - Momentum reduces the cost: keeping flow lets a player traverse for longer. Poor planning costs; skill is rewarded.
-- At zero stamina the player's **speed is slowed**: reduced, never disabled.
+- At zero stamina the player is **exhausted**: slowed, and unable to use anything that needs stamina until it recovers (user ruling 2026-11-11, replacing "reduced, never disabled" from 2026-11-10). Walking, crouching, crawling, jumping, vaulting and mantling always work.
 - Manual clambering gives a small amount back.
 - Stamina is a player skill: capacity or efficiency improves with level.
 - It must **not** feel like a traditional stamina bar that punishes players for simply moving.
 
-**[Open] [Q5]** How much speed is lost at zero stamina; what each action costs; whether vault, mantle, wall-run and jump cost any; how stamina recovers; how "momentum" is measured for the discount and for the "chance for increased momentum".
+### As built
+
+Every number below is an **initial tuning value** (user, 2026-11-11), not final balance. They live in `MovementConfig.Stamina` and `MovementConfig.Flow`. The rules are in two small modules that use no Roblox services, `src/shared/Stamina.luau` and `src/shared/FlowChain.luau`, so the server can run the same rules later.
+
+**Spending and recovery**
+
+| | Value |
+| :-- | :-- |
+| Maximum | 100 |
+| Sprint | 8 per second, for as long as the Sprint state lasts |
+| Wall-run | 10 per second while running the wall (user ruling 2026-11-11; agent's guess at the value). The longest run, 1.3 s, costs 13 |
+| Ledge hang | 5 per second while hanging (agent's guess at the value) |
+| Slide / roll / dive | 15 / 15 / 20, once, when the action starts (air rolls included) |
+| Recovery | 15 per second, starting 1 second after stamina was last spent |
+
+- Sprinting, wall-running and hanging spend all the time, so nothing comes back while they last.
+- Vault, mantle, grabbing a ledge, wall jump and jump cost nothing.
+- **With some stamina left but less than an action costs, the action still starts**: it takes what is left, and that exhausts the player.
+
+**Exhaustion.** It starts when stamina reaches zero and ends when stamina is back up to 15, not as soon as it is above zero. While it lasts (user ruling 2026-11-11):
+
+- **Nothing that needs stamina can start**: no sprint, slide, dive, roll, wall-run or ledge grab. A sprint, wall-run or ledge hang under way ends when stamina runs out; a slide, roll or dive already started finishes.
+- Walk, crouch and crawl speeds are multiplied by 0.70, and so is the speed that steering in the air can build up to (otherwise hopping would get round it).
+- Vaults, mantles and jumps are unaffected.
+- Sprint held through the recovery starts again by itself once exhaustion ends.
+
+From empty, recovery takes about 2 seconds of not spending: the 1 second wait, then 1 second to reach 15.
+
+**Momentum discount (preparation).** Speed takes up to 50% off a slide, roll or dive: nothing standing still, rising in a straight line to the full 50% at sprint speed (25). Only speed that is real, intended and straight ahead counts: the lower of the speed the movement code asks for and the body's actual speed, measured along where the player is looking. So sideways and backward speed, falling speed, running into a wall and being shoved earn nothing. A slide at its minimum speed (14) costs 10.8; at full sprint, 7.5. Sprint drain itself is not discounted.
+
+**FLOW chain (execution).** Linking abilities gives a little stamina back.
+
+- Actions that count: slide, dive, roll, wall-run, wall jump, vault, mantle, and a jump out of a slide. A plain jump, walking and sprinting do not.
+- An action counts when it **finishes**, if it lasted at least 0.15 s (one dropped the instant it began does not).
+- The next action must begin within **2 seconds** of the last one finishing. The clock does not run during an action, so a long slope slide cannot break a chain.
+- The same action twice in a row keeps the chain alive but counts once.
+- Every **3** counted actions pays **5** stamina, up to **10** per chain. After that the chain pays nothing until it has ended (the window ran out) and a new one begins.
+
+The two are independent: a slide begun at speed is cheaper, and if it is also the first link of a chain the chain pays later. A chain never makes an action cheaper.
+
+**Manual clamber refund.** A vault or mantle in Manual mode gives 3 stamina back (agent's guess at the value). A ledge grab gives nothing, because grabbing, dropping and grabbing again could repeat it on the spot. Vaults and mantles count toward a chain in both modes, so a manual mantle that completes a chain pays both (3 + 5).
+
+**Not player-facing yet.** Stamina and FLOW are shown only on the developer readout. Whether and how players see them is undecided.
+
+**Known limitations**
+
+- Stamina is simulated on the player's own device, like movement, so a cheater could ignore it until the server checks exist (M1.4).
+- Sprinting into a wall still drains.
+- Nothing stops a slow loop of free moves (vault back and forth) from earning chain rewards, but the 10 per chain limit and the 2 second gap keep it below what simply standing still recovers (15 per second).
+- Stamina refills on respawn.
+
+**[Open] [Q5]** Final values for everything above; whether vault, mantle and jump should cost anything; whether an air roll should cost the same as a ground roll; how weight changes stamina (see Weight); what "chance for increased momentum" in the weight rules refers to now that FLOW exists; how stamina is shown to the player.
 
 ## Weight [Established] — not built
 
@@ -158,7 +213,7 @@ Two levels:
 
 **[Open] [Q6]** The threshold and maximum values; what "approaching" means as a number; penalty sizes; whether non-equipment items (resources, quest items) have weight; whether anything can be picked up beyond the maximum.
 
-For the prototype, weight and stamina capacity are test values set by hand; the inventory (`EXTRACTION_SPEC.md`) and progression systems supply them later.
+Weight is not built: stamina currently ignores it. For the prototype, weight and stamina capacity are test values set by hand; the inventory (`EXTRACTION_SPEC.md`) and progression systems supply them later.
 
 ## Character and input [Established]
 
@@ -167,14 +222,14 @@ For the prototype, weight and stamina capacity are test values set by hand; the 
 
 ## Implementation status
 
-Checked automatically by `python3 tools/studio.py test` (38 checks, all passing on 2026-11-11; `src/client/Dev/MovementTests.luau`):
+Checked automatically by `python3 tools/studio.py test` (93 checks, all passing on 2026-11-11; `src/client/Dev/MovementTests.luau`):
 
 | Area | What the script checks |
 | :-- | :-- |
 | Walk, sprint | Reaches walk and sprint speed in the right state |
 | Direction speed | Walking backwards is capped; sprint works backwards and sideways, slower; a diagonal is no faster than straight ahead |
 | Strafing | A counter-strafe reverses quickly with no speed spike; forward sprint speed is not carried into a backpedal; no speed gained in the air while backpedalling; a sideways cut out of a sprint keeps most of its speed |
-| Slide | A crouch tap while sprinting slides with a boost and ends in a crouch; down the 15° ramp it keeps its speed and ends on the flat |
+| Slide | A crouch tap while sprinting slides with a boost and ends in a crouch; down the 15° ramp it keeps its speed and ends on the flat; the roll key does nothing during it; pressing sprint again cuts it into a sprint; no new slide (and no stamina charge) during the cooldown, and one starts again after it |
 | Crouch | Tap toggles it; stays without the key at crouch speed and height; sprint stands you up; cannot stand under the tunnel roof |
 | Prone | Hold crouch lowers the body; crawl speed; tap stands up; cannot stand under the tunnel roof |
 | Dive | Leaves the ground and lands prone |
@@ -182,11 +237,18 @@ Checked automatically by `python3 tools/studio.py test` (38 checks, all passing 
 | Roll | Air roll after an 8 stud fall; ground roll while walking; no roll while standing still |
 | Vault | Automatic vault over the 2 stud box while sprinting |
 | Mantle | Automatic mantle onto the 4 stud box |
-| Ledge grab | Grab on the 8 stud wall from a jump; Space pulls up onto the top |
-| Wall-run | Starts from a jump beside the wall; Space wall-jumps away from it |
+| Ledge grab | Grab on the 8 stud wall from a jump; Space pulls up onto the top; hanging drains stamina at the set rate; running out lets go; an exhausted player cannot grab |
+| Wall-run | Starts from a jump beside the wall; Space wall-jumps away from it; drains stamina at the set rate; running out ends the run; an exhausted player cannot start one |
+| Stamina rules (numbers only, no character) | Starts full; never below zero or above the maximum; exhaustion at zero and until the recovery threshold; recovery only after the delay, at the set rate, the same at any frame rate; spending restarts the delay |
+| Momentum rules (numbers only) | No discount at rest; grows with speed to the maximum and no further; only speed straight ahead counts; falling, blocked and shoved speed do not; the discount comes off the cost |
+| FLOW chain rules (numbers only) | Slide, wall-run, roll pays on the third action; instant actions count; continues inside the window and restarts after it; the window does not run during a long action; a repeated action counts once; dropped, switched-off and unknown actions do not count; a two-move loop stops paying at the limit; a new chain can earn again |
+| Stamina on the course | Sprint drains at the set rate and nothing comes back meanwhile; recovery only after the delay; slide and dive at full sprint cost half, once; a roll at walk speed gets a smaller discount and a sideways roll none; a roll or slide that does not start costs nothing |
+| Exhaustion on the course | Resting recovers; walking is slowed to 70%; no sprint and no roll while exhausted; running dry ends a sprint and no slide or dive can start; sprint returns once exhaustion is over; normal speed returns at the threshold, not before |
+| Manual clamber refund | An automatic vault gives nothing; in Manual mode nothing happens without the key; a manual clamber gives the refund once |
+| FLOW chain on the course | Slide, jump out of it, wall-run, wall jump is a chain of four, paid once, with the slide's momentum discount applied separately; the chain ends when its window runs out; slide, jump, mantle completes a chain |
 
 Checked once by hand with simulated keys (2026-11-10), not in the script: quick turn; slide-hop; manual clamber mode; ledge shimmy and drop; mantles of 5 and 6 studs; the settings panel and reduced camera motion; that a flat-ground jump does not roll.
 
-**Not tested:** slide steering; slide on landing; ending a slide early with crouch; getting up from prone with Space; diving sideways or backwards; strafing around cover or against a wall; the Command key on a Mac; anything with two players.
+**Not tested:** slide steering; slide on landing; ending a slide early with crouch; getting up from prone with Space; diving sideways or backwards; strafing around cover or against a wall; the Command key on a Mac; anything with two players. For stamina and FLOW: a real slide, wall-run, roll sequence and a wall-run, wall jump, slide sequence on the course (their rules are checked on the numbers only); a chain that reaches the 10 stamina limit on the course; the manual mantle refund (only a manual vault ran); stamina across a respawn; the debug readout's new lines (not looked at). The course checks for stamina switch sprint drain or recovery off where they would blur the number being measured.
 
 **Not looked at by eye by anyone:** the visible body, the roll camera, head bob (including the strafe bob), landing dip and lean. Feel has not been judged beyond the user's own number tuning.

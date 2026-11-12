@@ -4,9 +4,12 @@
 --   Crouch           let go
 --   left / right     shimmy along the ledge, as long as it continues
 --
--- How long a player may hang is not decided yet; for now, indefinitely.
+-- Hanging drains stamina, and running out makes the player let go (user
+-- rulings 2026-11-11). An exhausted player cannot grab a ledge at all
+-- (MovementController:_checkClamber), or they would grab and drop at once.
 
 local LedgeHang = {
+	staminaDrain = "LedgeHangDrain", -- holding on costs stamina for as long as it lasts
 	controlsBody = true,
 	blocksJump = true,
 }
@@ -58,6 +61,12 @@ function LedgeHang.update(ctx, dt: number): string?
 
 	if input.pressedSince("Crouch", hang.startedAt) then
 		input.consume("Crouch")
+		return "Air"
+	end
+
+	-- Out of stamina: the grip gives way. Checked after the keys, so a
+	-- pull-up pressed at the last moment still happens.
+	if ctx.stamina.current <= 0 then
 		return "Air"
 	end
 

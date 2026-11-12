@@ -5,10 +5,11 @@ Current state and the active checklist only. Decisions, conflicts (`Cn`) and que
 ## Current state (2026-11-11)
 
 - Milestone 1 (movement prototype) is nearly complete. Every planned ability is built; what is left is listed below.
-- 38 scripted checks pass in Studio (`python3 tools/studio.py test`). The user has tuned the core speeds; looks have not been checked by eye, and the full tuning pass is still to come.
+- 93 scripted checks pass in Studio (`python3 tools/studio.py test`). The user has tuned the core speeds; looks have not been checked by eye, and the full tuning pass is still to come.
 - Code is in the GitHub repo `dadragon4/project-frontier`; the place file is shared through Roblox and is not in git.
-- **Next:** the user plays the test course and tunes; then stamina and weight.
-- **Waiting on the user:** stamina recovery and values (Q5); weight values (Q6).
+- Stamina and FLOW are built on the `Stamina` branch (not merged): sprint drain, one-time costs, recovery, exhaustion, the momentum discount, chain rewards, the manual clamber refund, and the wall-run and ledge-hang drains; exhaustion blocks everything that needs stamina; plus the slide changes of 2026-11-11 (no roll out of a slide, sprint cuts a slide, slide cooldown). All their numbers are initial tuning values.
+- **Next:** the user plays the test course and tunes, stamina and FLOW included; then weight.
+- **Waiting on the user:** weight values (Q6); final stamina and FLOW values and how players see stamina (Q5).
 
 ## Roadmap [Established]
 
@@ -28,17 +29,16 @@ Specs still to write when their phase approaches: `COMBAT_SPEC.md`, `WORLD_DESIG
 
 A box is ticked only once the item has been run and checked in Studio. What exactly was tested is in `MOVEMENT_SPEC.md` → "Implementation status".
 
-**Done:** project setup, test course and scripted tests; input, state machine, config, debug readout; walk, omnidirectional sprint, crouch, prone, slide (flat and slope), slide-hop, dive, jump, roll, quick turn; vault, mantle, ledge grab (automatic and manual); wall-run and wall jump; camera feel, reduce-camera-motion and the settings panel (`P`, not saved yet).
+**Done:** project setup, test course and scripted tests; input, state machine, config, debug readout; walk, omnidirectional sprint, crouch, prone, slide (flat and slope), slide-hop, dive, jump, roll, quick turn; vault, mantle, ledge grab (automatic and manual); wall-run and wall jump; camera feel, reduce-camera-motion and the settings panel (`P`, not saved yet); stamina and FLOW (niko, branch `Stamina`).
 
 **Left:**
 
-- [ ] Stamina: sprint, slide, dive and roll cost it, momentum discounts it, zero stamina slows the player — needs recovery and values (Q5).
 - [ ] Weight modifier (lowers top speed), driven by a hand-set test value — needs Q6 values.
 - [ ] Check by eye: the visible first-person body, head bob (including strafe bob), roll camera, landing dip.
-- [ ] Server plausibility checks (first check Roblox's built-in server-authority status).
+- [ ] Server plausibility checks, stamina included (first check Roblox's built-in server-authority status).
 - [ ] Two-client multiplayer test.
 - [ ] Basic traversal animations and camera polish; lay the prone body flat (waits for the custom rig).
-- [ ] Tuning pass with the user.
+- [ ] Tuning pass with the user, including the stamina and FLOW values.
 
 Out of scope for M1: inventory, factions, weapons, AI, persistence, UI beyond the debug readout and settings panel.
 

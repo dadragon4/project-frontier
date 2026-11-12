@@ -3,7 +3,7 @@
 --
 -- Why: checking movement by hand (or by an AI agent pressing simulated keys
 -- one at a time) is slow. This plays through every ability by itself in
--- about 40 seconds and reports one PASS / FAIL line per check.
+-- about a minute and a half and reports one PASS / FAIL line per check.
 --
 -- How to run: `python3 tools/studio.py test` from the project folder (it
 -- starts a play session, runs this and prints the report). Or, while
@@ -16,6 +16,10 @@
 -- is the real movement code.
 --
 -- It checks that states and speeds are correct. It cannot judge feel.
+--
+-- Stamina and FLOW are checked twice over: first on the numbers alone (the
+-- Stamina and FlowChain modules, given made-up values, no character), then
+-- on the course with the real character.
 -- Positions below are test-course coordinates (see TestCourse.server.luau).
 
 local Players = game:GetService("Players")
@@ -25,6 +29,8 @@ local RunService = game:GetService("RunService")
 local ConfigFolder = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config")
 local Config = require(ConfigFolder:WaitForChild("MovementConfig"))
 local DevConfig = require(ConfigFolder:WaitForChild("DevConfig"))
+local Stamina = require(ReplicatedStorage.Shared:WaitForChild("Stamina"))
+local FlowChain = require(ReplicatedStorage.Shared:WaitForChild("FlowChain"))
 local Settings = require(script.Parent.Parent:WaitForChild("Settings"))
 
 local TRIGGER = "RunMovementTests"
@@ -96,6 +102,25 @@ local function run(input, c): string
 	local function heightAboveCourse(): number
 		return c:getFeetY() - ORIGIN.Y
 	end
+	local function courseZ(): number
+		return c.root.Position.Z - ORIGIN.Z
+	end
+
+	-- Change a config number for the current test only (for example,
+	-- switch regeneration off so that only an action's cost moves the
+	-- stamina number). Every change is undone before the next test.
+	local tuned = {}
+	local function tune(group, key: string, value)
+		table.insert(tuned, { group = group, key = key, value = group[key] })
+		group[key] = value
+	end
+	local function untune()
+		for index = #tuned, 1, -1 do
+			local change = tuned[index]
+			change.group[change.key] = change.value
+		end
+		table.clear(tuned)
+	end
 
 	-- Stand still at (x, z) on the course, `y` studs above its floor.
 	local function place(x: number, z: number, y: number?, crouched: boolean?)
@@ -133,6 +158,12 @@ local function run(input, c): string
 		end, 3)
 		-- A jump in the previous test must not leave its cooldown running.
 		c._jumpLandedAt = -math.huge
+		-- Nor may the previous test's stamina use or FLOW chain carry over.
+		c.stamina:refill()
+		c.flow:reset()
+		c.lastSlideEnd = -math.huge -- no slide cooldown left over either
+		c.lastFlowReward = 0
+		c.lastMomentumDiscount = 0
 	end
 
 	local jumps = 0
@@ -483,6 +514,627 @@ local function run(input, c): string
 			-- The wall is on the +X side, so a wall jump pushes toward -X.
 			check("wall jump", c.stateName == "Air" and c.velocity.X < -5, string.format("%s, x speed %.1f", c.stateName, c.velocity.X))
 		end,
+
+		function() -- stamina rules, on the numbers alone (no character involved)
+			-- Its own values, so retuning MovementConfig cannot break these.
+			local cfg = { Max = 100, RegenRate = 15, RegenDelay = 1, ExhaustedSpeedScale = 0.7, RecoverAt = 15 }
+			local s = Stamina.new(cfg)
+			check("stamina starts at its maximum", s.current == 100 and not s.exhausted)
+
+			local taken = s:spend(30)
+			local over = s:spend(500)
+			check(
+				"spending never takes stamina below zero",
+				taken == 30 and over == 70 and s.current == 0,
+				string.format("took %d then %d, left %d", taken, over, s.current)
+			)
+			check("zero stamina means exhausted, with the speed multiplier", s.exhausted and s:speedScale() == 0.7)
+			s:refund(14)
+			local stillExhausted = s.exhausted
+			s:refund(1)
+			check(
+				"exhaustion lasts until the recovery threshold, not just above zero",
+				stillExhausted and not s.exhausted and s:speedScale() == 1
+			)
+			local gained = s:refund(500)
+			check("a refund never takes stamina above the maximum", s.current == 100 and gained == 85)
+
+			s:refill()
+			s:spend(40)
+			s:step(0.5)
+			local duringDelay = s.current
+			s:step(1.5) -- the other half of the delay, then one second of regeneration
+			check(
+				"regeneration starts after the delay, at the set rate",
+				duringDelay == 60 and near(s.current, 75, 0.001),
+				string.format("%.1f during the delay, %.1f after", duringDelay, s.current)
+			)
+
+			local oneStep, manySteps = Stamina.new(cfg), Stamina.new(cfg)
+			oneStep:spend(60)
+			manySteps:spend(60)
+			oneStep:step(2)
+			for _ = 1, 200 do
+				manySteps:step(0.01)
+			end
+			check(
+				"regeneration is the same at any frame rate",
+				near(oneStep.current, manySteps.current, 0.01),
+				string.format("%.2f in one step, %.2f in 200", oneStep.current, manySteps.current)
+			)
+
+			s:refill()
+			s:spend(10)
+			s:step(0.9)
+			s:spend(1)
+			s:step(0.9)
+			check("spending again restarts the regeneration delay", s.current == 89, string.format("%.1f", s.current))
+
+			-- Momentum.
+			local discount, speedThatCounts = Stamina.momentumDiscount, Stamina.qualifyingSpeed
+			check("no momentum discount standing still", discount(0, 25, 0.5) == 0)
+			check(
+				"the discount grows with speed, up to the maximum and no further",
+				near(discount(12.5, 25, 0.5), 0.25, 1e-6) and discount(25, 25, 0.5) == 0.5 and discount(80, 25, 0.5) == 0.5
+			)
+			local diagonal = (NORTH + EAST).Unit * 20
+			check(
+				"only speed straight ahead counts as momentum",
+				near(speedThatCounts(NORTH * 20, NORTH * 20, NORTH), 20, 0.001)
+					and speedThatCounts(EAST * 25, EAST * 25, NORTH) == 0
+					and speedThatCounts(SOUTH * 25, SOUTH * 25, NORTH) == 0
+					and near(speedThatCounts(diagonal, diagonal, NORTH), 14.14, 0.01)
+			)
+			local falling = NORTH * 10 + Vector3.new(0, -80, 0)
+			check("falling speed does not count as momentum", near(speedThatCounts(falling, falling, NORTH), 10, 0.001))
+			check(
+				"speed into a wall, or from being shoved, does not count",
+				speedThatCounts(NORTH * 25, Vector3.zero, NORTH) == 0 and speedThatCounts(Vector3.zero, NORTH * 25, NORTH) == 0
+			)
+			check(
+				"the discount comes off the action's cost",
+				Stamina.discountedCost(15, 0) == 15 and Stamina.discountedCost(15, 0.5) == 7.5
+			)
+		end,
+
+		function() -- FLOW chain rules, on the numbers alone
+			local cfg = {
+				Window = 2,
+				MinActions = 3,
+				Reward = 5,
+				MaxRewardPerChain = 10,
+				MinActionTime = 0.15,
+				Actions = { Slide = true, Roll = true, WallRun = true, WallJump = true, Mantle = true, SlideHop = true, Dive = false },
+			}
+			local t = 0 -- a made-up clock
+			-- One whole action: wait `gap`, begin, last `duration`, finish.
+			local function act(chain, name: string, duration: number?, gap: number?): number
+				t += gap or 0.2
+				chain:begin(name, t)
+				t += duration or 0.5
+				return chain:finish(name, duration or 0.5, t)
+			end
+
+			local chain = FlowChain.new(cfg)
+			local first, second, third = act(chain, "Slide"), act(chain, "WallRun"), act(chain, "Roll")
+			check(
+				"slide, wall-run, roll: the third action pays the chain reward",
+				first == 0 and second == 0 and third == 5 and chain.count == 3,
+				string.format("rewards %d %d %d", first, second, third)
+			)
+
+			chain = FlowChain.new(cfg)
+			act(chain, "WallRun")
+			local wallJump = chain:instant("WallJump", t)
+			check(
+				"wall-run, wall jump, slide: instant actions count too",
+				wallJump == 0 and act(chain, "Slide") == 5 and chain.count == 3
+			)
+
+			chain = FlowChain.new(cfg)
+			act(chain, "Slide")
+			act(chain, "WallRun", 0.5, 1.9)
+			local insideWindow = chain.count
+			local late = act(chain, "Roll", 0.5, 2.1)
+			check(
+				"a chain carries on inside the window and starts again after it",
+				insideWindow == 2 and late == 0 and chain.count == 1,
+				string.format("%d inside the window, %d after it", insideWindow, chain.count)
+			)
+			check("time left in the window is reported", near(chain:timeLeft(t + 0.5) or -1, 1.5, 0.001))
+
+			chain = FlowChain.new(cfg)
+			act(chain, "Slide", 10) -- a ten second slide, far longer than the window
+			act(chain, "WallRun")
+			check("the window does not run during a long action", chain.count == 2)
+
+			chain = FlowChain.new(cfg)
+			local repeats = act(chain, "Slide") + act(chain, "Slide") + act(chain, "Slide") + act(chain, "Slide")
+			local afterRepeats = chain.count
+			act(chain, "WallRun", 0.5, 1.5)
+			check(
+				"the same action over and over counts once, but keeps the chain alive",
+				repeats == 0 and afterRepeats == 1 and chain.count == 2
+			)
+
+			chain = FlowChain.new(cfg)
+			act(chain, "Slide")
+			act(chain, "WallRun", 0.05) -- dropped at once
+			local afterAbort = chain.count
+			act(chain, "Dive") -- switched off in this test's Actions
+			act(chain, "Walk") -- not an action at all
+			check(
+				"dropped, switched-off and unknown actions do not count",
+				afterAbort == 1 and chain.count == 1 and not chain.inProgress
+			)
+
+			chain = FlowChain.new(cfg)
+			local total = 0
+			for index = 1, 12 do
+				total += act(chain, if index % 2 == 1 then "Slide" else "WallRun")
+			end
+			check(
+				"a loop of two moves pays up to the chain's limit, then nothing",
+				total == 10 and chain.count == 12,
+				string.format("%d stamina from %d actions", total, chain.count)
+			)
+			local fresh = act(chain, "Roll", 0.5, 2.5) + act(chain, "Slide") + act(chain, "WallRun")
+			check("after the chain has ended, a new one can earn again", fresh == 5 and chain.count == 3)
+		end,
+
+		function() -- sprint drain, and when stamina comes back
+			local s = c.stamina
+			local cfg = Config.Stamina
+
+			place(0, 120)
+			move(NORTH)
+			hold("Sprint")
+			sawState("Sprint", 1)
+			local before, started = s.current, os.clock()
+			local last, rose = before, false
+			waitFor(function()
+				rose = rose or s.current > last + 1e-6
+				last = s.current
+				return os.clock() - started >= 1
+			end, 2)
+			local elapsed = os.clock() - started
+			check(
+				"sprinting drains stamina at the set rate",
+				near(before - s.current, cfg.SprintDrain * elapsed, 1.5),
+				string.format("%.1f in %.2f s (expected %.1f)", before - s.current, elapsed, cfg.SprintDrain * elapsed)
+			)
+			check("no stamina comes back while sprinting", not rose)
+
+			release("Sprint")
+			move(Vector3.zero)
+			task.wait(0.1)
+			local afterSprint = s.current
+			task.wait(cfg.RegenDelay * 0.5)
+			local duringDelay = s.current
+			task.wait(cfg.RegenDelay * 0.5 + 0.6)
+			check(
+				"stamina comes back after the delay, not before",
+				duringDelay <= afterSprint + 1e-6 and s.current > afterSprint + 1,
+				string.format("%.1f after sprinting, %.1f during the delay, %.1f later", afterSprint, duringDelay, s.current)
+			)
+		end,
+
+		function() -- one-time costs and the momentum discount
+			local s = c.stamina
+			local costs = Config.Stamina.Costs
+			local maxDiscount = Config.Stamina.MomentumMaxDiscount
+			-- With sprint drain and regeneration off, only an action's own
+			-- cost moves the stamina number.
+			tune(Config.Stamina, "SprintDrain", 0)
+			tune(Config.Stamina, "RegenRate", 0)
+
+			place(0, 120)
+			move(NORTH)
+			hold("Sprint")
+			task.wait(1.5)
+			local before = s.current
+			tap("Crouch")
+			local slid = sawState("Slide", 0.3)
+			task.wait(0.3) -- many more frames of sliding: still only the one charge
+			release("Sprint")
+			check(
+				"a slide at full sprint costs stamina once, at the full discount",
+				slid and near(before - s.current, costs.Slide * (1 - maxDiscount), 0.75),
+				string.format("cost %.2f, discount %.0f%%", before - s.current, c.lastMomentumDiscount * 100)
+			)
+
+			place(0, 120)
+			move(NORTH)
+			hold("Sprint")
+			task.wait(1.5)
+			before = s.current
+			hold("Crouch")
+			local dived = sawState("Dive", 0.6)
+			release("Crouch")
+			release("Sprint")
+			check(
+				"a dive at full sprint costs stamina once, at the full discount",
+				dived and near(before - s.current, costs.Dive * (1 - maxDiscount), 1),
+				string.format("cost %.2f, discount %.0f%%", before - s.current, c.lastMomentumDiscount * 100)
+			)
+			sawState("Prone", 2)
+
+			place(0, 120)
+			move(NORTH)
+			task.wait(0.8)
+			before = s.current
+			local walkDiscount = maxDiscount * Config.WalkSpeed / Config.SprintSpeed
+			tap("Roll")
+			local rolled = sawState("Roll", 0.5)
+			check(
+				"a roll at walk speed gets a smaller discount",
+				rolled and near(before - s.current, costs.Roll * (1 - walkDiscount), 0.75),
+				string.format("cost %.2f, discount %.0f%%", before - s.current, c.lastMomentumDiscount * 100)
+			)
+			sawState("Walk", 2)
+
+			place(0, 120)
+			c.forwardOverride = NORTH -- looking up the course, moving sideways
+			move(EAST)
+			task.wait(0.8)
+			before = s.current
+			tap("Roll")
+			rolled = sawState("Roll", 0.5)
+			check(
+				"a sideways roll gets no discount",
+				rolled and near(before - s.current, costs.Roll, 0.3),
+				string.format("cost %.2f, discount %.0f%%", before - s.current, c.lastMomentumDiscount * 100)
+			)
+			c.forwardOverride = nil
+			sawState("Walk", 2)
+
+			-- Actions that do not start: a roll while standing still, and a
+			-- crouch tap while only walking (a crouch, not a slide).
+			place(0, 120)
+			before = s.current
+			tap("Roll")
+			task.wait(0.4)
+			local noRoll = c.stateName ~= "Roll"
+			move(NORTH)
+			task.wait(0.3)
+			tap("Crouch")
+			local crouched = sawState("Crouch", 0.5)
+			check(
+				"a roll or slide that does not start costs nothing",
+				noRoll and crouched and s.current == before,
+				string.format("%s, stamina %.1f", c.stateName, s.current)
+			)
+		end,
+
+		function() -- exhaustion
+			local s = c.stamina
+			local cfg = Config.Stamina
+			local scale = cfg.ExhaustedSpeedScale
+
+			-- Resting recovers: the delay, then regeneration up to the threshold.
+			place(0, 120)
+			s:set(0)
+			s:spend(0) -- starts the regeneration delay, as running dry would
+			local exhausted = s.exhausted
+			task.wait(cfg.RegenDelay + cfg.RecoverAt / cfg.RegenRate + 0.5)
+			check(
+				"an exhausted player recovers by resting",
+				exhausted and not s.exhausted,
+				string.format("stamina %.1f", s.current)
+			)
+
+			-- Regeneration off from here, so exhaustion lasts while measuring.
+			tune(cfg, "RegenRate", 0)
+			place(0, 120)
+			s:set(0)
+			move(NORTH)
+			task.wait(1.2)
+			check(
+				"exhausted walking is slowed",
+				s.exhausted and near(c:getActualSpeed(), Config.WalkSpeed * scale, 1),
+				now()
+			)
+			hold("Sprint")
+			task.wait(1)
+			check(
+				"an exhausted player cannot sprint",
+				c.stateName == "Walk" and near(c:getActualSpeed(), Config.WalkSpeed * scale, 1),
+				now()
+			)
+			tap("Roll")
+			check("an exhausted player cannot roll", not sawState("Roll", 0.4), now())
+			release("Sprint")
+
+			-- Running dry in the middle of a sprint: the sprint ends, and even
+			-- at that speed neither a slide nor a dive can start.
+			place(0, 120)
+			move(NORTH)
+			hold("Sprint")
+			task.wait(1.5)
+			s:set(0)
+			local blocked = c:getSpeed() >= Config.Dive.MinSpeed and not c:canSlide() and not c:canDive()
+			tap("Crouch")
+			local slid = sawState("Slide", 0.3)
+			check(
+				"running dry ends the sprint, and no slide or dive can start",
+				blocked and not slid and c.stateName ~= "Sprint",
+				now()
+			)
+			-- Sprint is still held: once recovered, the sprint comes back.
+			s:refund(cfg.RecoverAt)
+			check("sprint returns once exhaustion is over", sawState("Sprint", 0.5), now())
+			release("Sprint")
+
+			place(0, 120)
+			s:set(0)
+			s:refund(cfg.RecoverAt - 1)
+			move(NORTH)
+			task.wait(1)
+			local slowBelowThreshold = s.exhausted and near(c:getActualSpeed(), Config.WalkSpeed * scale, 1)
+			s:refund(1)
+			task.wait(0.8)
+			check(
+				"normal speed returns at the recovery threshold, not before",
+				slowBelowThreshold and not s.exhausted and near(c:getActualSpeed(), Config.WalkSpeed, 1),
+				now()
+			)
+		end,
+
+		function() -- manual clamber refund
+			local s = c.stamina
+			local refund = Config.Stamina.ManualClamberRefund
+			tune(Config.Stamina, "SprintDrain", 0)
+			tune(Config.Stamina, "RegenRate", 0)
+			local function clambering(): boolean
+				return c.stateName == "Vault" or c.stateName == "Mantle"
+			end
+
+			-- Automatic mode: over the 2 stud box, nothing is given back.
+			place(95, 120)
+			s:set(50)
+			move(NORTH)
+			hold("Sprint")
+			local vaulted = waitFor(clambering, 3)
+			waitFor(function()
+				return not clambering() and c.airTime == 0
+			end, 2)
+			check("an automatic vault gives no stamina back", vaulted and s.current == 50, string.format("stamina %.1f", s.current))
+
+			-- Manual mode, walking into the 3 stud box: nothing happens until
+			-- Space is pressed, and the refund comes once.
+			Settings.set("ClamberMode", "Manual")
+			place(95, 75)
+			s:set(50)
+			move(NORTH)
+			task.wait(1.5)
+			check(
+				"in manual mode, no key means no clamber and no refund",
+				not clambering() and s.current == 50,
+				string.format("%s, stamina %.1f", c.stateName, s.current)
+			)
+			tap("Jump")
+			local clambered = waitFor(clambering, 1)
+			waitFor(function()
+				return not clambering() and c.airTime == 0
+			end, 2)
+			check(
+				"a manual clamber gives the refund, once",
+				clambered and near(s.current, 50 + refund, 0.001),
+				string.format("stamina %.1f (expected %.1f)", s.current, 50 + refund)
+			)
+		end,
+
+		function() -- FLOW chain on the course: slide, jump out of it, wall-run, wall jump
+			local s = c.stamina
+			local flow = Config.Flow
+			tune(Config.Stamina, "SprintDrain", 0)
+			tune(Config.Stamina, "RegenRate", 0)
+			tune(flow, "MinActions", 3)
+			tune(Config.Stamina, "WallRunDrain", 0)
+
+			place(-48.6, -62)
+			s:set(50)
+			move(NORTH)
+			hold("Sprint")
+			waitFor(function()
+				return courseZ() <= -68
+			end, 3)
+			tap("Crouch")
+			local slid = sawState("Slide", 0.3)
+			local slideDiscount = c.lastMomentumDiscount
+			local slideCost = 50 - s.current
+			waitFor(function()
+				return courseZ() <= -78
+			end, 2)
+			tap("Jump") -- out of the slide, beside the wall
+			local ran = sawState("WallRun", 1)
+			task.wait(0.3)
+			tap("Jump") -- wall jump
+			waitFor(function()
+				return c.stateName ~= "WallRun"
+			end, 0.5)
+			task.wait(0.1)
+			-- Slide (1), jump out of it (2), wall-run (3: pays), wall jump (4).
+			check(
+				"slide, jump, wall-run, wall jump: a chain of four, paid once",
+				slid and ran and c.flow.count == 4 and c.lastFlowReward == flow.Reward,
+				string.format("%d actions, last reward %d", c.flow.count, c.lastFlowReward)
+			)
+			check(
+				"the momentum discount and the chain reward both apply, separately",
+				slideDiscount > 0.3
+					and near(slideCost, Config.Stamina.Costs.Slide * (1 - slideDiscount), 0.01)
+					and near(s.current, 50 - slideCost + flow.Reward, 0.01),
+				string.format("slide cost %.2f at %.0f%% off, stamina %.2f", slideCost, slideDiscount * 100, s.current)
+			)
+
+			-- Stop, and let the window run out.
+			release("Sprint")
+			move(Vector3.zero)
+			waitFor(function()
+				return c.airTime == 0 and c.stateName == "Walk"
+			end, 3)
+			task.wait(flow.Window + 0.4)
+			check("the chain ends when its window runs out", c.flow.count == 0, c.flow.count .. " actions")
+		end,
+
+		function() -- FLOW chain on the course: slide, jump, mantle
+			local s = c.stamina
+			local flow = Config.Flow
+			tune(Config.Stamina, "SprintDrain", 0)
+			tune(Config.Stamina, "RegenRate", 0)
+			tune(flow, "MinActions", 3)
+
+			-- Toward the 4 stud box, whose near face is at z = 21.5.
+			place(95, 55)
+			s:set(50)
+			move(NORTH)
+			hold("Sprint")
+			waitFor(function()
+				return courseZ() <= 46
+			end, 3)
+			tap("Crouch")
+			local slid = sawState("Slide", 0.3)
+			waitFor(function()
+				return courseZ() <= 31
+			end, 2)
+			tap("Jump")
+			local mantled = sawState("Mantle", 1.5)
+			release("Sprint")
+			sawState("Walk", 2)
+			task.wait(0.1)
+			check(
+				"slide, jump, mantle: the mantle completes the chain",
+				slid and mantled and c.flow.count == 3 and c.lastFlowReward == flow.Reward,
+				string.format("%d actions, last reward %d, %.1f up", c.flow.count, c.lastFlowReward, heightAboveCourse())
+			)
+		end,
+
+		function() -- slide: no roll out of it; sprint cuts it short; a cooldown before the next
+			local s = c.stamina
+			tune(Config.Stamina, "SprintDrain", 0)
+			tune(Config.Stamina, "RegenRate", 0)
+
+			place(0, 120)
+			move(NORTH)
+			hold("Sprint")
+			task.wait(1.5)
+			tap("Crouch")
+			local slid = sawState("Slide", 0.3)
+			local afterSlide = s.current
+			tap("Roll")
+			task.wait(0.2)
+			check(
+				"the roll key does nothing during a slide",
+				slid and c.stateName == "Slide" and s.current == afterSlide,
+				now()
+			)
+
+			-- Sprint has been held all along, which must not end the slide.
+			-- Letting go and pressing it again must.
+			release("Sprint")
+			task.wait(0.05)
+			hold("Sprint")
+			local cut = sawState("Sprint", 0.3)
+			check("pressing sprint again cuts a slide into a sprint", cut and not c.crouched, now())
+
+			local fastEnough = c:getSpeed() >= Config.Slide.MinSpeed
+			tap("Crouch")
+			local tooSoon = sawState("Slide", 0.3)
+			check(
+				"no new slide during the cooldown, and no stamina charged",
+				fastEnough and not tooSoon and s.current == afterSlide,
+				string.format("%s, stamina %.1f", now(), s.current)
+			)
+
+			task.wait(Config.Slide.Cooldown)
+			sawState("Sprint", 0.5)
+			tap("Crouch")
+			check("a slide starts again once the cooldown is over", sawState("Slide", 0.3), now())
+			release("Sprint")
+		end,
+
+		function() -- hanging from a ledge drains stamina
+			local s = c.stamina
+			place(60, -110)
+			move(NORTH)
+			waitFor(function()
+				return courseZ() <= -114.5
+			end, 2)
+			tap("Jump")
+			local hanging = sawState("LedgeHang", 1.5)
+			move(Vector3.zero)
+			local before, started = s.current, os.clock()
+			task.wait(1)
+			local elapsed = os.clock() - started
+			local expected = Config.Stamina.LedgeHangDrain * elapsed
+			check(
+				"hanging from a ledge drains stamina at the set rate",
+				hanging and c.stateName == "LedgeHang" and near(before - s.current, expected, 1),
+				string.format("%.1f in %.2f s (expected %.1f)", before - s.current, elapsed, expected)
+			)
+			s:set(0)
+			check(
+				"running out of stamina while hanging lets go",
+				waitFor(function()
+					return c.stateName ~= "LedgeHang"
+				end, 0.5) and s.exhausted,
+				now()
+			)
+
+			-- Exhausted (and kept that way): the same jump grabs nothing.
+			tune(Config.Stamina, "RegenRate", 0)
+			place(60, -110)
+			s:set(0)
+			move(NORTH)
+			waitFor(function()
+				return courseZ() <= -114.5
+			end, 3)
+			tap("Jump")
+			check("an exhausted player cannot grab a ledge", not sawState("LedgeHang", 1.5), now())
+		end,
+
+		function() -- wall-running drains stamina, and needs some
+			local s = c.stamina
+			tune(Config.Stamina, "SprintDrain", 0)
+			tune(Config.Stamina, "RegenRate", 0)
+			local function runUp()
+				place(-48.6, -62)
+				move(NORTH)
+				hold("Sprint")
+				waitFor(function()
+					return courseZ() <= -74
+				end, 3)
+			end
+
+			runUp()
+			tap("Jump")
+			local ran = sawState("WallRun", 1)
+			local before, started = s.current, os.clock()
+			task.wait(0.5)
+			local elapsed = os.clock() - started
+			local stillRunning = c.stateName == "WallRun"
+			local expected = Config.Stamina.WallRunDrain * elapsed
+			check(
+				"wall-running drains stamina at the set rate",
+				ran and stillRunning and near(before - s.current, expected, 1),
+				string.format("%.1f in %.2f s (expected %.1f)", before - s.current, elapsed, expected)
+			)
+			s:set(0)
+			check(
+				"running out of stamina ends the wall-run",
+				waitFor(function()
+					return c.stateName ~= "WallRun"
+				end, 0.3),
+				now()
+			)
+
+			runUp()
+			s:set(0)
+			tap("Jump")
+			check("an exhausted player cannot wall-run", not sawState("WallRun", 1), now())
+			release("Sprint")
+		end,
 	}
 
 	local clamberMode = Settings.get("ClamberMode")
@@ -492,6 +1144,9 @@ local function run(input, c): string
 		if not ok then
 			check("test " .. index .. " stopped early", false, tostring(err))
 		end
+		-- Undo anything the test changed for itself, even if it stopped early.
+		untune()
+		Settings.set("ClamberMode", "Auto")
 	end
 	jumpWatch:Disconnect()
 	place(0, 140)

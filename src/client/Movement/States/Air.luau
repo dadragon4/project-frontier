@@ -17,12 +17,16 @@ local Air = {
 
 function Air.enter(ctx, previous: string)
 	local hop = ctx.config.SlideHop
-	if previous == "Slide" and ctx._jumped and os.clock() - ctx.lastSlideHop > hop.Cooldown then
-		local speed = ctx:getSpeed()
-		if speed > 0.5 then
-			local boosted = math.min(speed + hop.Boost, math.max(speed, hop.MaxSpeed))
-			ctx.velocity = ctx.velocity / speed * boosted
-			ctx.lastSlideHop = os.clock()
+	if previous == "Slide" and ctx._jumped then
+		-- A jump out of a slide is a FLOW action, boosted or not.
+		ctx:flowInstant("SlideHop")
+		if os.clock() - ctx.lastSlideHop > hop.Cooldown then
+			local speed = ctx:getSpeed()
+			if speed > 0.5 then
+				local boosted = math.min(speed + hop.Boost, math.max(speed, hop.MaxSpeed))
+				ctx.velocity = ctx.velocity / speed * boosted
+				ctx.lastSlideHop = os.clock()
+			end
 		end
 	end
 end
@@ -32,15 +36,16 @@ function Air.update(ctx, dt: number): string?
 
 	if ctx.grounded and ctx.airTime == 0 then
 		if ctx.input.pressedSince("Roll", ctx.leftGroundAt) then
-			if ctx.lastFallHeight >= config.Roll.MinFallHeight then
+			if ctx.lastFallHeight >= config.Roll.MinFallHeight and ctx:canUseStamina() then
 				return "Roll"
 			end
-			-- Too short a fall for an air roll: the press is dropped, so it
-			-- does not turn into a ground roll the moment we land.
+			-- Too short a fall for an air roll (or no stamina for one): the
+			-- press is dropped, so it does not turn into a ground roll the
+			-- moment we land.
 			ctx.input.consume("Roll")
 		end
 
-		if ctx:crouchKey() == "tap" and ctx:getSpeed() >= config.Slide.MinSpeed then
+		if ctx:crouchKey() == "tap" and ctx:canSlide() then
 			return "Slide"
 		end
 		if ctx:wantsSprint() then
@@ -49,7 +54,7 @@ function Air.update(ctx, dt: number): string?
 		return "Walk"
 	end
 
-	if ctx.airTime >= config.WallRun.MinAirTime then
+	if ctx.airTime >= config.WallRun.MinAirTime and ctx:canUseStamina() then
 		local wall = ctx:findWallRunWall()
 		if wall then
 			ctx.pendingWall = wall
