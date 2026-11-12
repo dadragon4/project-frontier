@@ -13,6 +13,14 @@
 --   far right  vault boxes
 --   far end    vault rails (centre-right), wall-run walls (left),
 --              ledge-grab / shimmy wall (right)
+--
+-- East of all that, on its own floor (the annex, x 140..340), are the extra
+-- sections, each built by its own module in CourseSections:
+--   near (south)   strafe lane, and the run-outs of the slide ramps
+--   middle         slide park: 10, 20 and 25 degree ramps, steering ramp
+--   far (north)    FLOW circuit with a lap timer
+-- Nothing on the original floor is moved by them; the scripted tests rely
+-- on the original positions.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -168,6 +176,15 @@ end
 -- then move left and right along it.
 local shimmy = makeBox("ShimmyLedge", Vector3.new(40, 8, 4), Vector3.new(60, 0, -120), OBSTACLE_COLOR)
 addLabel(shimmy, "Ledge grab / shimmy: 8 high")
+
+-- Annex floor (east): 200 wide, the same length and height as the main floor
+-- and flush against it, so you can run straight across the join.
+makePart("AnnexFloor", Vector3.new(200, 2, 320), CFrame.new(ORIGIN + Vector3.new(240, -1, 0)), FLOOR_COLOR)
+
+local sections = script.Parent:WaitForChild("CourseSections")
+for _, name in { "StrafeLane", "SlidePark", "FlowCircuit" } do
+	require(sections:WaitForChild(name)).build(course, ORIGIN)
+end
 
 -- Spawn at the start of the sprint lane, facing down it.
 local spawn = Instance.new("SpawnLocation")

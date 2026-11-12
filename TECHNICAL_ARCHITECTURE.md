@@ -24,6 +24,7 @@ src/client/Movement/States/*         one file per state: Walk, Sprint, Crouch, S
 src/client/Movement/DebugReadout     on-screen state, speed, stamina and FLOW
 src/client/Dev/MovementTests         scripted movement checks on the test course
 src/server/TestCourse.server         builds the greybox course at server start
+src/server/CourseSections/*          extra course sections on the east annex floor: StrafeLane, SlidePark, FlowCircuit (lap timer), CourseKit (shared helpers)
 src/server/CharacterCollision.server stops players' arms and legs colliding with the world
 ```
 

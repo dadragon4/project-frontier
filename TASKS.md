@@ -29,7 +29,7 @@ Specs still to write when their phase approaches: `COMBAT_SPEC.md`, `WORLD_DESIG
 
 A box is ticked only once the item has been run and checked in Studio. What exactly was tested is in `MOVEMENT_SPEC.md` → "Implementation status".
 
-**Done:** project setup, test course and scripted tests; input, state machine, config, debug readout; walk, omnidirectional sprint, crouch, prone, slide (flat and slope), slide-hop, dive, jump, roll, quick turn; vault, mantle, ledge grab (automatic and manual); wall-run and wall jump; camera feel, reduce-camera-motion and the settings panel (`P`, not saved yet); stamina and FLOW (niko, branch `Stamina`).
+**Done:** project setup, test course and scripted tests; input, state machine, config, debug readout; walk, omnidirectional sprint, crouch, prone, slide (flat and slope), slide-hop, dive, jump, roll, quick turn; vault, mantle, ledge grab (automatic and manual); wall-run and wall jump; camera feel, reduce-camera-motion and the settings panel (`P`, not saved yet); stamina and FLOW (niko, branch `Stamina`); test course stage 1: strafe lane, slide park (10°, 20°, 25° ramps and a steering ramp) and a timed FLOW circuit, each with optional `E` reset posts (branch `test-obstacle-course`; built and timer checked, not yet run by a player).
 
 **Left:**
 
