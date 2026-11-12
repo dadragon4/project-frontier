@@ -51,11 +51,9 @@ Object categories: decorative / interactable / physics-driven gameplay objects /
 
 **[Established]** Quick-time events have one application: hacking into strongholds that hold substantial loot. Hacking is a high-value, pressured interaction with more depth than a proximity prompt. It may involve timing or sequencing. QTEs are not to be added elsewhere.
 
-**[Established — ruling 2026-11-10, settles C7]** Hacking is both a mechanic and a skill. The skill levels up through the player's level **and** through use of hacking together: a player who never hacks never levels it. Higher skill makes hacks easier and faster. The concept doc's Level / Skill Unlock table is still empty.
+**[Established]** Hacking is both a mechanic and a skill. The skill levels up through the player's level **and** through use of hacking together: a player who never hacks never levels it. Higher skill makes hacks easier and faster. The concept doc's Level / Skill Unlock table is still empty.
 
-**[Open]** Whether chests and lootboxes also use the hacking interaction (concept doc) or only strongholds (master prompt).
-
-**[Open] [Q14]** The sequence itself; failure consequences; whether other players can interrupt; whether it makes noise or attracts AI; whether it is real-time; whether a squad defends the hacker.
+**[Open] [Q14]** Whether chests and lootboxes also use the hacking interaction or only strongholds; the sequence itself; failure consequences; whether other players can interrupt; whether it makes noise or attracts AI; whether it is real-time; whether a squad defends the hacker.
 
 ## Factions in play
 
@@ -68,9 +66,9 @@ Object categories: decorative / interactable / physics-driven gameplay objects /
 - Several same-faction squads may rally together against larger threats. Limits and matchmaking: **[Q10]**.
 - Colony Militias are hostile or friendly depending on the player's faction (**[Q26]**).
 
-**Children of Aero [Established — ruling 2026-11-10, settles C5]** — unlocked at **500 rp**. The faction is never shown outright: players discover who the Children of Aero are through exploration, and later gain them through the unlock. Potentially with their own contracts, objectives, alternative mission outcomes, storyline and equipment. They need not be playable at launch.
+**Children of Aero [Established]** — unlocked at **500 rp**. The faction is never shown outright: players discover who the Children of Aero are through exploration, and later gain them through the unlock. Potentially with their own contracts, objectives, alternative mission outcomes, storyline and equipment. They need not be playable at launch.
 
-**Aero's operators [Established — ruling 2026-11-10]** — SEVs (officially employed) have more advanced gear and bio-enhancements; Aero's independent contractors have less advanced gear but higher stamina and movement speed. Whether and how this becomes a gameplay choice is to be discussed later (**[Open]**).
+**Aero's operators [Established]** — SEVs (officially employed) have more advanced gear and bio-enhancements; Aero's independent contractors have less advanced gear but higher stamina and movement speed. Whether and how this becomes a gameplay choice is to be discussed later (**[Open]**).
 
 ## Progression
 
@@ -90,11 +88,11 @@ Accumulated resources and operator experience are separate measures. A player ca
 
 **[Established]** XP drives player level. Stamina is a skill that improves with level (capacity or efficiency).
 
-**[Established — 2026-11-10]** Each player's maximum stamina differs by rank, class and faction (to be worked on later). Hacking levels through player level and use together.
+**[Established]** Each player's maximum stamina differs by rank, class and faction (to be worked on later). Hacking levels through player level and use together.
 
-**[Open] [Q18]** The full skill system. No large skill tree without approval. Classes and the detailed stamina rules are deferred by the user to a later discussion.
+**[Open] [Q18]** The full skill system. No large skill tree without approval. Classes are deferred by the user.
 
-### Reputation [Established — ruling 2026-11-10, settles C6]
+### Reputation [Established]
 
 - There is **one overall Reputation**. Separate "faction reputation" is dropped.
 - Earned by collecting specific in-game items — **medallions, artifacts and voice logs** — and by naturally leveling up.

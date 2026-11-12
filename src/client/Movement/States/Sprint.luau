@@ -2,6 +2,7 @@
 -- Works in any direction; sideways and backwards are slower.
 
 local Sprint = {
+	staminaDrain = "SprintDrain", -- costs stamina for as long as it lasts
 	allowsGroundRoll = true, -- the roll key rolls from here
 	allowsClamber = true, -- vault / mantle can start from here
 }
@@ -17,13 +18,14 @@ function Sprint.update(ctx, dt: number): string?
 		return "Air"
 	end
 
-	-- Crouch key: tap to slide, hold to dive. Too slow for either, and it
-	-- behaves as it does when walking (crouch / prone).
+	-- Crouch key: tap to slide, hold to dive. Too slow for either (or too
+	-- soon after the last slide), and it behaves as it does when walking
+	-- (crouch / prone).
 	local key = ctx:crouchKey()
 	if key == "tap" then
-		return if ctx:getSpeed() >= config.Slide.MinSpeed then "Slide" else "Crouch"
+		return if ctx:canSlide() then "Slide" else "Crouch"
 	elseif key == "hold" then
-		return if ctx:getSpeed() >= config.Dive.MinSpeed then "Dive" else "Prone"
+		return if ctx:canDive() then "Dive" else "Prone"
 	end
 
 	if not ctx:wantsSprint() then

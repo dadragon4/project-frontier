@@ -6,9 +6,15 @@
 -- held. On flat ground it ends, crouched, when the speed runs out. Down a
 -- slope there is no friction and it carries on until the slope levels out.
 -- Pressing crouch again ends it early (into a crouch); so does jumping.
+-- Pressing sprint again cuts it short, straight back into a sprint.
+-- The roll key does nothing during a slide (user ruling 2026-11-11).
+--
+-- After a slide ends, another cannot start for Slide.Cooldown seconds
+-- (MovementController:canSlide), so sprint and slide cannot be spammed.
 
 local Slide = {
-	allowsGroundRoll = true, -- the roll key rolls from here
+	staminaCost = "Slide", -- paid once, when the slide starts
+	flowAction = "Slide", -- counts toward a FLOW chain
 	allowsClamber = true, -- vault / mantle can start from here
 }
 
@@ -17,6 +23,7 @@ function Slide.enter(ctx)
 	ctx.crouched = true
 	-- The crouch press that started this slide has now been used.
 	ctx.input.consume("Crouch")
+	ctx.slideStartedAt = os.clock()
 
 	local speed = ctx:getSpeed()
 	local direction = if speed > 0.01 then ctx.velocity / speed else ctx.forward
@@ -79,6 +86,19 @@ function Slide.update(ctx, dt: number): string?
 	-- where it keeps going until the slope levels out.)
 	if speed < slide.EndSpeed and not onDownSlope then
 		return "Crouch"
+	end
+
+	-- Pressing sprint again cuts the slide short, straight into a sprint.
+	-- It has to be a new press: the key is usually still held down from
+	-- the sprint that led into the slide. (Under a low roof, setState
+	-- turns this into a crouch.)
+	if
+		ctx.stateTime >= slide.MinTime
+		and ctx.input.pressedSince("Sprint", ctx.slideStartedAt)
+		and ctx:wantsSprint()
+	then
+		ctx.input.consume("Sprint")
+		return "Sprint"
 	end
 
 	-- Pressing crouch again ends the slide early.

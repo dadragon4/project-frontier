@@ -31,7 +31,7 @@ A deployment should feel like **an expedition into a world that already existed*
 2. **Exploration** — Reward looking deeper and past the obvious, without making exploration exhausting or requiring excessive backtracking.
 3. **Extraction** — Decisions have consequences. Carrying more reduces mobility and changes how encounters are approached.
 4. **Combat** — Deliberate gunplay. Every trigger pull carries weight. Physics and environment are part of combat.
-5. **Progression** — A reason to return. Gathering supplies is the beginning of a longer struggle. (Exact wording of that struggle: **[Conflict C10]**.)
+5. **Progression** — A reason to return. Gathering supplies is the beginning of a longer struggle for control and resources.
 
 These are not interchangeable. When two pillars compete for time or design space, the higher one wins.
 
@@ -48,7 +48,7 @@ These are not interchangeable. When two pillars compete for time or design space
 ## Design principles [Established]
 
 - Movement should reward skill and flow; stamina must not feel like a bar that punishes simply moving.
-- Vaulting and mantling can be automatic or manual (a player setting). Manual takes deliberate input, is rewarded with a stamina boost, and misreading an obstacle costs time. Gamepad and touch clamber automatically. (User decision 2026-11-10; replaces the earlier manual-only rule.)
+- Vaulting and mantling can be automatic or manual (a player setting). Manual takes deliberate input, is rewarded with a stamina boost, and misreading an obstacle costs time. Gamepad and touch clamber automatically by default, with manual available in the settings menu.
 - Loot is baggage, literally and strategically. Weight makes traversal harder but never removes parkour.
 - Dying costs the weapons and loot of that deployment, but faction default weapons mean a player is never stranded.
 - Combat is consequential but not instant-kill. A few excellent weapons before many weapons.

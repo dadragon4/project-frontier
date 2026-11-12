@@ -112,7 +112,7 @@ def run_tests(studio):
     time.sleep(1)
     studio.lua("Client", 'game:GetService("Players").LocalPlayer:SetAttribute("RunMovementTests", os.clock())')
     report = ""
-    for _ in range(60):
+    for _ in range(100):  # up to 200 seconds; the full run takes about 90
         time.sleep(2)
         report = studio.lua("Client", 'return game:GetService("Players").LocalPlayer:GetAttribute("MovementTestReport") or "PENDING"')
         if "PENDING" not in report:

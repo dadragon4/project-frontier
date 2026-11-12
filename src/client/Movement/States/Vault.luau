@@ -7,6 +7,7 @@
 -- the landing.
 
 local Vault = {
+	flowAction = "Vault", -- counts toward a FLOW chain
 	controlsBody = true,
 	blocksJump = true,
 }

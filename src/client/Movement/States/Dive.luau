@@ -7,6 +7,8 @@
 local Workspace = game:GetService("Workspace")
 
 local Dive = {
+	staminaCost = "Dive", -- paid once, when the dive starts
+	flowAction = "Dive", -- counts toward a FLOW chain
 	blocksJump = true,
 }
 

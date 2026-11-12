@@ -1,4 +1,6 @@
--- A small on-screen readout for tuning: current state and speeds.
+-- A small on-screen readout for tuning: current state, speeds, stamina and
+-- FLOW. This is a developer tool, not the player's stamina display: how (or
+-- whether) players see stamina is a separate design decision.
 -- Development tool only; switched by DevConfig.ShowDebugReadout.
 
 local Players = game:GetService("Players")
@@ -18,7 +20,7 @@ function DebugReadout.new(controller)
 	local label = Instance.new("TextLabel")
 	label.AnchorPoint = Vector2.new(0, 1)
 	label.Position = UDim2.new(0, 16, 1, -16)
-	label.Size = UDim2.fromOffset(260, 84)
+	label.Size = UDim2.fromOffset(330, 184)
 	label.BackgroundColor3 = Color3.new(0, 0, 0)
 	label.BackgroundTransparency = 0.4
 	label.BorderSizePixel = 0
@@ -39,12 +41,44 @@ function DebugReadout.new(controller)
 	self.gui = gui
 
 	self.connection = RunService.RenderStepped:Connect(function()
+		local stamina = controller.stamina
+		local flow = controller.flow
+
+		-- When stamina will next come back.
+		local regen
+		if controller.state.staminaDrain then
+			regen = "none (draining)"
+		elseif stamina.regenDelayLeft > 0 then
+			regen = string.format("in %.1f s", stamina.regenDelayLeft)
+		elseif stamina.current >= stamina.max then
+			regen = "full"
+		else
+			regen = "regenerating"
+		end
+
+		-- Time left to carry the chain on; "..." while an action is under way.
+		local timeLeft = flow:timeLeft(os.clock())
+		local window = if flow.inProgress then "..." elseif timeLeft then string.format("%.1f s", timeLeft) else "-"
+
 		label.Text = string.format(
-			"state     %s\nintended  %5.1f studs/s\nactual    %5.1f studs/s\ngrounded  %s",
+			"state     %s\nintended  %5.1f studs/s\nactual    %5.1f studs/s\ngrounded  %s\n"
+				.. "stamina   %5.1f / %d%s\nregen     %s\n"
+				.. "momentum  %2.0f%% off an action started now\n"
+				.. "last paid %2.0f%% off (slide, roll or dive)\n"
+				.. "chain     %d actions, window %s, last +%d",
 			controller.stateName,
 			controller:getSpeed(),
 			controller:getActualSpeed(),
-			tostring(controller.grounded)
+			tostring(controller.grounded),
+			stamina.current,
+			stamina.max,
+			if stamina.exhausted then "  EXHAUSTED" else "",
+			regen,
+			controller:momentumDiscount() * 100,
+			controller.lastMomentumDiscount * 100,
+			flow.count,
+			window,
+			controller.lastFlowReward
 		)
 	end)
 
