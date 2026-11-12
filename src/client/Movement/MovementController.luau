@@ -124,6 +124,8 @@ function MovementController.new(character: Model, input)
 	-- server will run the same two modules to check it (M1.4).
 	self.stamina = Stamina.new(Config.Stamina)
 	self.flow = FlowChain.new(Config.Flow)
+	self.drainScale = 1 -- share of the current state's stamina drain that is charged (momentum lowers it)
+	self.blockedGraceUntil = 0 -- until this time, a speed jump is not treated as hitting a wall
 	self.lastMomentumDiscount = 0 -- share taken off the most recent action's cost (debug readout, tests)
 	self.lastFlowReward = 0 -- stamina the most recent chain payout gave (debug readout, tests)
 	self._flowQueue = {} -- instant FLOW actions waiting for the current change of state to finish
@@ -248,6 +250,13 @@ function MovementController:setState(name: string)
 		local cost = Config.Stamina.Costs[newState.staminaCost]
 		self.stamina:spend(Stamina.discountedCost(cost, self.lastMomentumDiscount))
 	end
+	-- A state whose drain is cheaper with momentum (wall-run): fix the
+	-- discount now, for the whole time the state lasts.
+	self.drainScale = 1
+	if newState.drainUsesMomentum then
+		self.lastMomentumDiscount = self:momentumDiscount()
+		self.drainScale = 1 - self.lastMomentumDiscount
+	end
 
 	if previousState and previousState.exit then
 		previousState.exit(self)
@@ -310,6 +319,11 @@ end
 -- Not while exhausted: see canUseStamina.
 function MovementController:wantsSprint(): boolean
 	return self.input.isDown("Sprint") and self.wishDir ~= Vector3.zero and self:canUseStamina()
+end
+
+-- Sprint top speed: higher while in FLOW.
+function MovementController:sprintSpeed(): number
+	return Config.SprintSpeed + (if self.flow:inFlow() then Config.Flow.SprintSpeedAdd else 0)
 end
 
 -- May the player start something that needs stamina? Not while exhausted
@@ -649,6 +663,9 @@ function MovementController:_reconcileBlocked()
 		return
 	end
 	local actual = self:getActualSpeed()
+	if os.clock() < self.blockedGraceUntil then
+		return
+	end
 	if intended - actual > Config.BlockedSpeedTolerance then
 		self.velocity = self.velocity.Unit * actual
 	end
@@ -724,7 +741,7 @@ function MovementController:_update(dt: number)
 	-- restarts the wait before stamina comes back, nothing comes back
 	-- while they last.
 	if self.state.staminaDrain then
-		self.stamina:spend(Config.Stamina[self.state.staminaDrain] * dt)
+		self.stamina:spend(Config.Stamina[self.state.staminaDrain] * self.drainScale * dt)
 	end
 	self.stamina:step(dt)
 	self.flow:update(os.clock())

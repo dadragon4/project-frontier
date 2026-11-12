@@ -7,8 +7,26 @@ local Sprint = {
 	allowsClamber = true, -- vault / mantle can start from here
 }
 
-function Sprint.enter(ctx)
+function Sprint.enter(ctx, previous: string?)
 	ctx.crouched = false
+
+	-- Pressing sprint while already strafing: go straight to sprint-strafe
+	-- speed, with no build-up, so quick strafes answer at once. Only from a
+	-- walk, only when already moving the way the player is pushing, and only
+	-- when that push is sideways (see StrafeSprintSnapDot).
+	local config = ctx.config
+	local wish = ctx.wishDir
+	if
+		previous == "Walk"
+		and wish ~= Vector3.zero
+		and math.abs(wish:Dot(ctx.forward)) <= config.StrafeSprintSnapDot
+		and ctx.velocity:Dot(wish) > 1
+	then
+		ctx.velocity = wish * ctx:sprintSpeed() * ctx:directionSpeedScale() * ctx.stamina:speedScale()
+		-- The body needs a few frames to catch up with this jump in speed;
+		-- do not mistake that for running into a wall.
+		ctx.blockedGraceUntil = os.clock() + 0.2
+	end
 end
 
 function Sprint.update(ctx, dt: number): string?
@@ -40,7 +58,7 @@ function Sprint.update(ctx, dt: number): string?
 	local along = ctx.velocity:Dot(ctx.wishDir)
 	local accel = if along < config.WalkSpeed then config.GroundAccel else config.SprintAccel
 	-- Extra speed from a slide-hop or vault bleeds away gently (OverSpeedDecel).
-	ctx:accelerate(config.SprintSpeed, accel, config.GroundDecel, dt, config.OverSpeedDecel)
+	ctx:accelerate(ctx:sprintSpeed(), accel, config.GroundDecel, dt, config.OverSpeedDecel)
 	return nil
 end
 

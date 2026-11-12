@@ -25,6 +25,7 @@ No conflicts (`Cn`) are open. What each source document said before a ruling is 
 | Q7 | Animations are placeholders for now. | — |
 | — | Movement controls (crouch tap/hold, prone, dive, roll on Ctrl/Command, slope slides, omnidirectional sprint, slide/roll/dive separate). | `MOVEMENT_SPEC.md` |
 | — | 2026-11-11: wall-running and hanging from a ledge drain stamina, and at zero the run ends or the player lets go; an exhausted player cannot use anything that needs stamina; no roll out of a slide; pressing sprint again during a slide cuts into a sprint; a cooldown between slides stops sprint/slide spam. | `MOVEMENT_SPEC.md` |
+| — | 2026-11-12: FLOW window 3 s; completing a chain (3 linked moves) pays 25 stamina once and puts the player "in FLOW" until the chain ends: sprint +5, field of view +5, hidden meter (debug only). A wall-run that has started finishes even at zero stamina (replaces "the run ends" above), and momentum discounts its drain. Slope slides cap at 28, or 30 if started in FLOW; a flat slide travels at most 25 studs; slide steering +5 degrees per second. Sprint pressed while strafing reaches sprint-strafe speed at once. | `MOVEMENT_SPEC.md` |
 
 ## Open questions for Milestone 1
 

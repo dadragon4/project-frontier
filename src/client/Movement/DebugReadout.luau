@@ -64,8 +64,9 @@ function DebugReadout.new(controller)
 			"state     %s\nintended  %5.1f studs/s\nactual    %5.1f studs/s\ngrounded  %s\n"
 				.. "stamina   %5.1f / %d%s\nregen     %s\n"
 				.. "momentum  %2.0f%% off an action started now\n"
-				.. "last paid %2.0f%% off (slide, roll or dive)\n"
-				.. "chain     %d actions, window %s, last +%d",
+				.. "last paid %2.0f%% off (slide, roll, dive or wall-run)\n"
+				.. "chain     %d actions, window %s, last +%d\n"
+				.. "FLOW      %3.0f%%%s",
 			controller.stateName,
 			controller:getSpeed(),
 			controller:getActualSpeed(),
@@ -78,7 +79,9 @@ function DebugReadout.new(controller)
 			controller.lastMomentumDiscount * 100,
 			flow.count,
 			window,
-			controller.lastFlowReward
+			controller.lastFlowReward,
+			flow:meter() * 100,
+			if flow:inFlow() then "  IN FLOW" else ""
 		)
 	end)
 

@@ -15,7 +15,9 @@
 --     nothing, so repeating one move is not a chain;
 --   - every MinActions counted actions pays Reward stamina, up to
 --     MaxRewardPerChain for one chain. After that the chain pays nothing
---     more until it has ended (the window ran out) and a new one begins.
+--     more until it has ended (the window ran out) and a new one begins;
+--   - once the chain has MinActions counted actions the player is
+--     "in FLOW" until the chain ends (see inFlow and meter).
 --
 -- `config` is MovementConfig.Flow, read every time so tuning takes effect
 -- straight away. This module only says how much a chain has earned; the
@@ -46,6 +48,17 @@ function FlowChain:timeLeft(now: number): number?
 		return nil
 	end
 	return math.max(self.config.Window - (now - self.lastEndedAt), 0)
+end
+
+-- The hidden FLOW meter: 0 with no chain, 1 (100%) once the chain has
+-- MinActions counted actions. Each counted action fills an equal share.
+function FlowChain:meter(): number
+	return math.min(self.count / self.config.MinActions, 1)
+end
+
+-- "In FLOW": the meter is full. It lasts until the chain ends.
+function FlowChain:inFlow(): boolean
+	return self.count >= self.config.MinActions
 end
 
 -- End the chain if its window has run out. Call every frame.

@@ -132,6 +132,10 @@ function FirstPersonCamera:_update(dt: number)
 	if state == "Slide" or state == "WallRun" then
 		fovAdd = cameraConfig.SlideFovAdd
 	end
+	-- In FLOW the view widens a little more.
+	if controller.flow:inFlow() then
+		fovAdd += Config.Flow.FovAdd
+	end
 	local targetFov = cameraConfig.BaseFov + fovAdd * fovScale
 	camera.FieldOfView += (targetFov - camera.FieldOfView) * blend(cameraConfig.FovRate, dt)
 
