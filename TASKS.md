@@ -7,7 +7,7 @@ Current state and the active checklist only. Decisions, conflicts (`Cn`) and que
 - Milestone 1 (movement prototype) is nearly complete. Every planned ability is built; what is left is listed below.
 - 100 scripted checks pass in Studio (`python3 tools/studio.py test`). The user has tuned the core speeds; looks have not been checked by eye, and the full tuning pass is still to come.
 - Code is in the GitHub repo `dadragon4/project-frontier`; the place file is shared through Roblox and is not in git.
-- Stamina and FLOW are built on the `Stamina` branch (not merged): sprint drain, one-time costs, recovery, exhaustion, the momentum discount, chain rewards, the manual clamber refund, and the wall-run and ledge-hang drains; exhaustion blocks everything that needs stamina; plus the slide changes of 2026-11-11 (no roll out of a slide, sprint cuts a slide, slide cooldown). All their numbers are initial tuning values.
+- Stamina and FLOW are built and merged: sprint drain, one-time costs, recovery, exhaustion, the momentum discount, chain rewards, the manual clamber refund, and the wall-run and ledge-hang drains; exhaustion blocks everything that needs stamina; plus the slide changes of 2026-11-11 (no roll out of a slide, sprint cuts a slide, slide cooldown) and of 2026-11-12 (in FLOW: sprint +5 and wider view; slope slide caps; flat slide distance limit; strafe-sprint snap). All their numbers are initial tuning values.
 - **Next:** the user plays the test course and tunes, stamina and FLOW included; then weight.
 - **Waiting on the user:** weight values (Q6); final stamina and FLOW values and how players see stamina (Q5).
 
@@ -29,7 +29,7 @@ Specs still to write when their phase approaches: `COMBAT_SPEC.md`, `WORLD_DESIG
 
 A box is ticked only once the item has been run and checked in Studio. What exactly was tested is in `MOVEMENT_SPEC.md` → "Implementation status".
 
-**Done:** project setup, test course and scripted tests; input, state machine, config, debug readout; walk, omnidirectional sprint, crouch, prone, slide (flat and slope), slide-hop, dive, jump, roll, quick turn; vault, mantle, ledge grab (automatic and manual); wall-run and wall jump; camera feel, reduce-camera-motion and the settings panel (`P`, not saved yet); stamina and FLOW (niko, branch `Stamina`); test course stage 1: strafe lane, slide park (10°, 20°, 25° ramps and a steering ramp) and a timed FLOW circuit, each with optional `E` reset posts (branch `test-obstacle-course`; built and timer checked, not yet run by a player).
+**Done:** project setup, test course and scripted tests; input, state machine, config, debug readout; walk, omnidirectional sprint, crouch, prone, slide (flat and slope), slide-hop, dive, jump, roll, quick turn; vault, mantle, ledge grab (automatic and manual); wall-run and wall jump; camera feel, reduce-camera-motion and the settings panel (`P`, not saved yet); stamina and FLOW; test course stage 1: strafe lane, slide park (10°, 20°, 25° ramps and a steering ramp) and a timed FLOW circuit, each with optional `E` reset posts (built and timer checked, not yet run by a player).
 
 **Left:**
 
