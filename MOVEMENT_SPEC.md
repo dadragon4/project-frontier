@@ -42,6 +42,7 @@ As built:
 - Pushing against your own momentum (a counter-strafe) brakes at its own faster rate, `ReverseDecel`. Letting go of the keys uses `GroundDecel`; cornering uses `TurnFriction`.
 - The gentle bleed-off of extra sprint speed only applies when pushing forward, so forward sprint speed cannot be carried into a strafe or a backpedal.
 - Steering in the air cannot build more speed than walking that way would.
+- **Camera steering in the air** (user request 2026-11-12): turning the view bends your flight by a share of the turn (`AirCameraSteer`, 0.3, agent's guess), with or without a key held. Speed is kept. Not during a dive, which has no steering.
 - Pressing sprint while already strafing goes straight to sprint-strafe speed, with no build-up (user ruling 2026-11-12). It applies to a sideways push more than 60 degrees off straight ahead (`StrafeSprintSnapDot`); forward and diagonal sprints still build up.
 - A sideways cut out of a sprint picks up the new direction at the normal (fast) rate.
 - Measured at 60 frames per second with the current config: walk reversal 0.23 s; sprint reversal 0.37 s; a sprint cut to the side dips from 25 to 19.6 and completes in 0.22 s.
@@ -67,9 +68,11 @@ Responsive and intuitive. For stealth, tactical positioning, getting under obsta
 ### Slide [Established]
 
 - A momentum-based transition out of sprinting; players build speed first. Momentum is preserved where appropriate.
-- On flat ground it ends in a crouch, and never travels further than **25 studs** (`Slide.MaxFlatDistance`; friction normally ends it sooner). Down a slope it keeps going until the slope levels out, and can be ended early by jumping or pressing crouch.
+- It only starts when sprinting straight ahead; diagonals, sideways and backwards crouch instead (`Slide.MinForwardDot`; no diagonal slide, user ruling 2026-11-12).
+- On flat ground it ends after about **15 studs** (`Slide.Friction`; shortened by 2 studs on 2026-11-12), and never travels further than **25 studs** (`Slide.MaxFlatDistance`). Down a slope it keeps going until the slope levels out, and can be ended early by jumping or pressing crouch.
 - Down a slope its speed is capped at **28**, or **30** if the slide was started while in FLOW (`Slide.SlopeMaxSpeed`, `Slide.FlowSlopeMaxSpeed`; user rulings 2026-11-12).
 - Steering turns the slide at about 74 degrees per second (`Slide.SteerRate`, raised by 5 degrees per second on 2026-11-12).
+- **Camera steering** (user request 2026-11-12): turning the view also turns the slide, by a share of the turn (`Slide.CameraSteer`, 0.5, agent's guess: look 90 degrees left and the slide bends 45). Speed is kept. The quick turn (`R`) does not count as steering.
 - **Pressing sprint again during a slide cuts it straight back into a sprint** (user ruling 2026-11-11). It must be a new press: sprint is usually still held from the run-up, and holding it does not end the slide.
 - **Cooldown** (user ruling 2026-11-11): after a slide ends, another cannot start for 1 second (agent's guess at the value), so sprint and slide cannot be spammed. A crouch tap during the cooldown crouches instead, as it does when too slow to slide.
 - Chains into other moves: slide into an obstacle → vault; slide → jump (slide-hop). **There is no roll out of a slide** (user ruling 2026-11-11): the roll key does nothing while sliding.
@@ -133,15 +136,27 @@ A ledge too tall to mantle and within reach is grabbed while airborne. While han
 
 ### Wall-run [Established]
 
-An alternative route where conventional ones do not exist. As built: jump alongside a wall while moving along it fast enough and you run along it for a short time in a shallow arc. `Space` wall-jumps off; crouch drops off. It also ends when the wall ends, you reach the floor, or speed or stamina runs out. **Wall-running drains stamina** (user ruling 2026-11-11; see Stamina), and an exhausted player cannot start one. You cannot run the same wall twice before landing. Automatic in both clambering modes.
+An alternative route where conventional ones do not exist. **A wall-run needs a sprint first** (user ruling 2026-11-12): it only starts if you left the ground from a sprint, a slide or another wall-run. As built: jump alongside a wall while moving along it fast enough and you run along it in a shallow arc. `Space` wall-jumps off; crouch drops off.
+
+**It lasts until your feet reach the ground** (user ruling 2026-11-12): there is no time limit. It also ends when the wall ends or speed runs out (not when stamina runs out). The arc is flat enough to clear about 50 studs at sprint speed (`WallRun.Gravity` 6, about 2.3 s); a run started **in FLOW** is flatter still and lasts longer (`WallRun.FlowGravity` 4, about 3.4 s). Both values are the agent's guesses.
+
+**Wall to wall** (user ruling 2026-11-12): a wall jump can carry you onto the opposite wall, which starts a fresh run. Straight after a wall jump the steep angle toward the new wall is allowed (`WallRun.WallToWallApproachDot`). **Wall-running drains stamina** (user ruling 2026-11-11; see Stamina), and an exhausted player cannot start one. You cannot run the same wall twice in a row before landing; bouncing between two walls is limited only by stamina. Automatic in both clambering modes.
 
 ### Jump
+
+**[Established — user rulings 2026-11-13]**
+
+- A fresh jump rises **7 studs** (`JumpHeight`).
+- **Weighted fall:** the rise is a normal arc, but you come down faster than you went up, like jumping with equipment (`JumpFallGravityScale`, 1.6, agent's guess). The height is unchanged.
+- **Jump fatigue:** each jump in a row is **2 studs lower**: 7, 5, 3. Landing the 3-stud jump blocks jumping for **2 seconds**, then the next jump is 7 again. Resting on the ground for 2 seconds without jumping also brings back the full 7 (`JumpHeightStep`, `JumpMinHeight`, `JumpFatigueCooldown`, `JumpRestTime`). Wall jumps and dives are separate and do not count; a jump out of a slide does.
 
 As built: a press just before landing is remembered (buffered jump); a press just after walking off an edge still jumps (coyote jump). `JumpCooldown` blocks a new jump for a moment after landing from one, and takes priority over the buffered jump. Wall jumps ignore it.
 
 ### Camera feel and settings [Established]
 
 Movement should feel physical, with a setting to reduce camera motion.
+
+The view cannot look further down than 60 degrees below level (`Camera.MaxLookDown`; user ruling 2026-11-12, the value is the agent's guess), so it never ends up inside the body. Walking has its own side-to-side sway, `CameraFeel.WalkSideBobAmount` (0.08 at walk speed; user ruling 2026-11-12); `SideBobAmount` covers sprint, crouch and crawl. Sprinting forward or on a forward diagonal tilts the view left and right with the steps (`CameraFeel.SprintSwayTilt`, 1 degree, a guess); `SideBobAmount` only slides the camera sideways, which mostly shows on your own body.
 
 As built: head bob scaled with speed (up-down and side-to-side; strafing rocks sideways more and bounces less); a landing dip that grows with fall height; a slight lean when strafing; a tilt away from the wall while wall-running; small downward looks during mantles and vaults; the camera turning over in a roll. **Reduce camera motion** removes all of these except a smaller landing dip and a smaller speed field-of-view change. Settings are not saved between sessions yet (Phase 5).
 
@@ -168,7 +183,7 @@ Every number below is an **initial tuning value** (user, 2026-11-11), not final 
 | :-- | :-- |
 | Maximum | 100 |
 | Sprint | 8 per second, for as long as the Sprint state lasts |
-| Wall-run | 10 per second while running the wall, less the momentum discount measured when the run starts (up to half off; user ruling 2026-11-12). The longest run, 1.3 s, costs 13 at most |
+| Wall-run | 10 per second while running the wall, less the momentum discount measured when the run starts (up to half off; user ruling 2026-11-12). A normal run of about 2.3 s costs 23 at most |
 | Ledge hang | 5 per second while hanging (agent's guess at the value) |
 | Slide / roll / dive | 15 / 15 / 20, once, when the action starts (air rolls included) |
 | Recovery | 15 per second, starting 1 second after stamina was last spent |
@@ -240,15 +255,16 @@ Weight is not built: stamina currently ignores it. For the prototype, weight and
 
 ## Implementation status
 
-Checked automatically by `python3 tools/studio.py test` (106 checks, all passing on 2026-11-12; `src/client/Dev/MovementTests.luau`). Every check other than the sprint-mode ones below runs in **hold** mode, because the script holds the key down and lets go to stop:
+Checked automatically by `python3 tools/studio.py test` (117 checks; `src/client/Dev/MovementTests.luau`). The last run, before the 2026-11-12 second hotfix set, passed all 112 checks it had then; the changed and new checks below have **not been run yet**. `python3 tools/studio.py quick` runs a short suite instead: 16 checks, one per main feature, each printed with its input and output. Every check other than the sprint-mode ones below runs in **hold** mode, because the script holds the key down and lets go to stop:
 
 | Area | What the script checks |
 | :-- | :-- |
+| Hotfixes 2026-11-12 | Crouch pressed during a slide ends it in a crouch; out of stamina a slide ends in a walk; a wall jump onto the opposite wall starts a new wall-run; a wall-run lasts past the old 1.3 s; a wall-run started in FLOW uses the flatter curve; no slide while sprinting backwards; no slide on a forward diagonal; a normal flat slide travels about 15 studs; sprinting forward tilts the view; the view stops at the look-down limit; no wall-run from a walk |
 | Walk, sprint | Reaches walk and sprint speed in the right state |
-| Sprint mode | Toggle: a tap sprints with the key let go, a second tap ends it; the switch is cleared by stopping, by a slide (which ends crouched) and by running out of stamina |
+| Sprint mode | Toggle: a tap sprints with the key let go, a second tap ends it; the switch survives a slide (which ends in a sprint), and is cleared by stopping and by running out of stamina |
 | Direction speed | Walking backwards is capped; sprint works backwards and sideways, slower; a diagonal is no faster than straight ahead |
 | Strafing | Sprint pressed while strafing is at full strafe speed at once, and the body follows; pressed while walking forward it still builds up; a counter-strafe reverses quickly with no speed spike; forward sprint speed is not carried into a backpedal; no speed gained in the air while backpedalling; a sideways cut out of a sprint keeps most of its speed |
-| Slide | A crouch tap while sprinting slides with a boost and ends in a crouch; down the 15° ramp it keeps its speed and ends on the flat; the roll key does nothing during it; pressing sprint again cuts it into a sprint; no new slide (and no stamina charge) during the cooldown, and one starts again after it; down the ramp it holds the slope cap (28, or 30 when started in FLOW); a flat slide stops within 25 studs |
+| Slide | A crouch tap while sprinting slides with a boost and ends in a sprint with the key held; down the 15° ramp it keeps its speed and ends on the flat; the roll key does nothing during it; pressing sprint again cuts it into a sprint; no new slide (and no stamina charge) during the cooldown, and one starts again after it; down the ramp it holds the slope cap (28, or 30 when started in FLOW); a flat slide stops within 25 studs |
 | Crouch | Tap toggles it; stays without the key at crouch speed and height; sprint stands you up; cannot stand under the tunnel roof |
 | Prone | Hold crouch lowers the body; crawl speed; tap stands up; cannot stand under the tunnel roof |
 | Dive | Leaves the ground and lands prone |
@@ -268,6 +284,6 @@ Checked automatically by `python3 tools/studio.py test` (106 checks, all passing
 
 Checked once by hand with simulated keys (2026-11-10), not in the script: quick turn; slide-hop; manual clamber mode; ledge shimmy and drop; mantles of 5 and 6 studs; the settings panel and reduced camera motion; that a flat-ground jump does not roll.
 
-**Not tested:** slide steering; slide on landing; ending a slide early with crouch; getting up from prone with Space; diving sideways or backwards; strafing around cover or against a wall; the Command key on a Mac; anything with two players. For stamina and FLOW: a real slide, wall-run, roll sequence and a wall-run, wall jump, slide sequence on the course (their rules are checked on the numbers only); a chain that reaches the 10 stamina limit on the course; the manual mantle refund (only a manual vault ran); stamina across a respawn; the debug readout's new lines (not looked at). The course checks for stamina switch sprint drain or recovery off where they would blur the number being measured.
+**Not tested:** slide steering, and camera steering in a slide or in the air (no scripted check; the user checks by playing); slide on landing; getting up from prone with Space; diving sideways or backwards; strafing around cover or against a wall; the Command key on a Mac; anything with two players. For stamina and FLOW: a real slide, wall-run, roll sequence and a wall-run, wall jump, slide sequence on the course (their rules are checked on the numbers only); a chain that reaches the 10 stamina limit on the course; the manual mantle refund (only a manual vault ran); stamina across a respawn; the debug readout's new lines (not looked at). The course checks for stamina switch sprint drain or recovery off where they would blur the number being measured.
 
 **Not looked at by eye by anyone:** the visible body, the roll camera, head bob (including the strafe bob), landing dip and lean. Feel has not been judged beyond the user's own number tuning.

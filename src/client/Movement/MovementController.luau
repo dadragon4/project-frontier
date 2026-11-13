@@ -120,6 +120,9 @@ function MovementController.new(character: Model, input)
 	self.forwardOverride = nil -- set by scripted tests to replace the camera's facing
 	self.cameraPitch = 0 -- extra camera pitch in radians, applied by the camera
 	self.quickTurnRemaining = 0 -- radians of quick-turn still to apply; the camera does the turning
+	self.quickTurnApplied = 0 -- radians of quick-turn the camera applied since the last frame (not steering)
+	self.lastYaw = nil -- camera heading last frame, for camera steering
+	self.cameraYawDelta = 0 -- how far the view turned this frame, radians (left is positive)
 	self.airPeakY = 0 -- highest the feet have been during the current time in the air
 	self.lastFallHeight = 0 -- how far the feet dropped (peak to landing) on the most recent landing
 
@@ -143,6 +146,9 @@ function MovementController.new(character: Model, input)
 	self._jumpedAt = 0
 	self._jumpLandedAt = -math.huge -- when we last landed from a jump (for the jump cooldown)
 	self._jumpOff = false -- true while the Humanoid's own jump is switched off
+	self.jumpCount = 0 -- jumps in the current run of jumps (jump fatigue)
+	self._jumpFatigueUntil = -math.huge -- no jumping before this (after the lowest jump)
+	self._lastJumpHeight = Config.JumpHeight -- how high the jump in progress was set to go
 
 	-- Fires for every jump, whether Roblox's control script or our buffered
 	-- jump started it.
@@ -151,6 +157,10 @@ function MovementController.new(character: Model, input)
 			self._jumped = true
 			self._jumpedAt = os.clock()
 			self.input.consume("Jump")
+			-- Jump fatigue: remember this jump's height, and count it so the
+			-- next one is lower (see _handleJump).
+			self._lastJumpHeight = self.humanoid.JumpHeight
+			self.jumpCount += 1
 		end
 	end)
 
@@ -406,7 +416,10 @@ end
 -- spammed).
 function MovementController:canSlide(): boolean
 	local slide = Config.Slide
-	return self:getSpeed() >= slide.MinSpeed
+	local speed = self:getSpeed()
+	return speed >= slide.MinSpeed
+		-- Forward only: no sliding backwards or flat sideways.
+		and self.velocity:Dot(self.forward) >= speed * slide.MinForwardDot
 		and os.clock() - self.lastSlideEnd >= slide.Cooldown
 		and self:canUseStamina()
 end
@@ -511,7 +524,16 @@ function MovementController:accelerate(targetSpeed: number, accel: number, decel
 end
 
 -- Air movement: keep speed, allow some steering.
+-- Turn a flat direction or velocity by `share` of this frame's camera turn.
+-- Used for camera steering in a slide and in the air; the length (speed)
+-- is unchanged.
+function MovementController:cameraSteered(v: Vector3, share: number): Vector3
+	return CFrame.Angles(0, self.cameraYawDelta * share, 0) * v
+end
+
 function MovementController:airSteer(dt: number)
+	-- Camera steering: turning the view bends the flight a little, keys or not.
+	self.velocity = self:cameraSteered(self.velocity, Config.AirCameraSteer)
 	if self.wishDir == Vector3.zero then
 		return
 	end
@@ -536,6 +558,15 @@ function MovementController:_readInput()
 	local _, yaw = camera.CFrame:ToOrientation()
 	local facing = CFrame.Angles(0, yaw, 0)
 	self.forward = facing.LookVector
+
+	-- How far the player turned the view since last frame, for camera
+	-- steering (slide and air). The quick turn's own rotation is taken back
+	-- out: it is a view flip, not a steer. Wrapped to -pi..pi so turning
+	-- past "straight behind" does not count as a full circle.
+	local delta = if self.lastYaw then yaw - self.lastYaw - self.quickTurnApplied else 0
+	self.cameraYawDelta = (delta + math.pi) % (2 * math.pi) - math.pi
+	self.lastYaw = yaw
+	self.quickTurnApplied = 0
 
 	-- The direction Roblox's control script just asked for, in world space.
 	-- It already accounts for the camera and for whichever device is in use.
@@ -587,6 +618,11 @@ function MovementController:_readGround(dt: number)
 	if self._jumped and onFloor and os.clock() - self._jumpedAt > 0.2 then
 		self._jumped = false
 		self._jumpLandedAt = os.clock()
+		-- Landed the lowest jump: no jumping for a while, then full height.
+		if self._lastJumpHeight <= Config.JumpMinHeight + 0.01 then
+			self._jumpFatigueUntil = os.clock() + Config.JumpFatigueCooldown
+			self.jumpCount = 0
+		end
 	end
 
 	-- A short grace period stops stairs and small bumps counting as
@@ -607,7 +643,27 @@ end
 -- The same switch is used while a state has blocksJump (for example prone,
 -- where Space means "get up", not "jump").
 function MovementController:_handleJump()
-	local cooling = os.clock() - self._jumpLandedAt < Config.JumpCooldown
+	local now = os.clock()
+
+	-- Jump fatigue: a rest on the ground brings back the full height. Then
+	-- set the height the next jump will reach. It has to be set before the
+	-- jump, because an ordinary jump is started by Roblox's control script.
+	if self.jumpCount > 0 and not self._jumped and now - self._jumpLandedAt >= Config.JumpRestTime then
+		self.jumpCount = 0
+	end
+	local height = math.max(Config.JumpHeight - Config.JumpHeightStep * self.jumpCount, Config.JumpMinHeight)
+	if not self._jumped and self.humanoid.JumpHeight ~= height then
+		self.humanoid.JumpHeight = height
+	end
+
+	-- Weighted fall: on the way down from a jump, add extra gravity.
+	-- (Not while a state such as a wall-run is moving the body itself.)
+	if self._jumped and not self.state.controlsBody and self.root.AssemblyLinearVelocity.Y < 0 then
+		local extra = Workspace.Gravity * (Config.JumpFallGravityScale - 1)
+		self.root.AssemblyLinearVelocity -= Vector3.new(0, extra * self._frameDt, 0)
+	end
+
+	local cooling = now - self._jumpLandedAt < Config.JumpCooldown or now < self._jumpFatigueUntil
 	local off = cooling or self.state.blocksJump == true
 	if off ~= self._jumpOff then
 		self._jumpOff = off
@@ -764,6 +820,7 @@ function MovementController:_update(dt: number)
 	self:_readInput()
 	self:_updateSprintToggle()
 	self:_readGround(dt)
+	self._frameDt = dt -- for the weighted fall in _handleJump
 	self:_handleJump()
 	if not self.state.controlsBody then
 		self:_reconcileBlocked()

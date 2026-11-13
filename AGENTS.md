@@ -83,6 +83,8 @@ python3 tools/studio.py test
 
 On Windows, use `python` instead of `python3`. This starts a play session, runs the scripted movement checks (`src/client/Dev/MovementTests.luau`), prints one PASS/FAIL line per check plus any console errors, and stops the session (about two minutes). Run it after every movement change, and add a check there for each new ability instead of testing by hand with simulated keys.
 
+`python3 tools/studio.py quick` runs a short suite instead: one check per main feature, each line showing the input given and the output seen.
+
 `python3 tools/studio.py` with no arguments lists the other commands (console output, running Luau in Studio, calling any Studio MCP tool).
 
 The script checks states and numbers, not feel or looks; those need the user. Also consider multiplayer and edge cases. **Report exactly what was and was not tested. Never say something works if it was not run.**

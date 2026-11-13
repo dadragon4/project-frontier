@@ -53,9 +53,30 @@ return {
 
 	-- Air
 	AirAccel = 20, -- steering strength while airborne (speed itself is kept)
-	JumpHeight = 5, -- Roblox's default is 7.2
+	-- Camera steering in the air (user request 2026-11-12): turning the view
+	-- turns your momentum by this share of the turn, whether or not a key is
+	-- held. 0.3 = look 90 degrees left and your flight bends 27 degrees left.
+	-- Speed is kept. 0 = off; 1 = momentum follows the view exactly.
+	AirCameraSteer = 0.3,
+	-- Height of a fresh jump, in studs (Roblox's default is 7.2). Raised
+	-- from 5 to 7 (user ruling 2026-11-13).
+	JumpHeight = 7,
+	-- Jump fatigue (user ruling 2026-11-13): each jump in a row is this much
+	-- lower than the one before (7, 5, 3), down to JumpMinHeight. Landing
+	-- the lowest jump blocks jumping for JumpFatigueCooldown seconds; after
+	-- that the next jump is full height again. Resting on the ground for
+	-- JumpRestTime seconds without jumping also brings back the full height.
+	JumpHeightStep = 2,
+	JumpMinHeight = 5,
+	JumpFatigueCooldown = 0.7,
+	JumpRestTime = 0.6,
+	-- Weighted fall (user ruling 2026-11-13): on the way down from a jump,
+	-- gravity is this many times stronger, like jumping with equipment.
+	-- The rise and the height are unchanged; you just come down faster.
+	-- 1 = Roblox's plain arc; higher = heavier
+	JumpFallGravityScale = 1.2,
 	CoyoteTime = 0.12, -- how long after leaving the ground we still count as grounded (and may still jump)
-	JumpCooldown = 0.5, -- seconds after landing from a jump before you can jump again (0 = straight away; wall jumps are not affected)
+	JumpCooldown = 0.4, -- seconds after landing from a jump before you can jump again (0 = straight away; wall jumps are not affected)
 
 	-- Input buffering: how long an early press is remembered.
 	Buffer = {
@@ -86,6 +107,12 @@ return {
 
 	Slide = {
 		MinSpeed = 14, -- must be moving at least this fast to start a slide
+		-- A slide only starts when moving forward (user ruling 2026-11-12):
+		-- the movement must be within this of where the player is looking.
+		-- 0.9 = up to about 25 degrees off: straight ahead slides; diagonals
+		-- (45 degrees), sideways and backwards crouch instead (no diagonal
+		-- slide, user ruling 2026-11-12). Lower = wider angles allowed.
+		MinForwardDot = 0.9,
 		-- Seconds after one slide ends before the next can start, so sprint
 		-- and slide cannot be spammed (user ruling 2026-11-11; the value is
 		-- the agent's guess). During it, a crouch tap crouches instead.
@@ -95,7 +122,7 @@ return {
 		-- No boost if the previous slide ended more recently than this.
 		-- Only matters when it is longer than Cooldown above.
 		BoostCooldown = 1.0,
-		MaxSpeed = 34,
+		MaxSpeed = 26,
 		-- Top speed while sliding DOWN A SLOPE (user ruling 2026-11-12). The
 		-- slide stops gaining speed here, and a slide that arrives on a slope
 		-- faster than this is trimmed to it. Higher = faster ramp slides.
@@ -107,14 +134,22 @@ return {
 		-- limit however fast it started. Distance covered on a slope does
 		-- not count. Higher = longer flat slides allowed.
 		MaxFlatDistance = 25,
-		Friction = 22, -- speed lost per second on flat ground (higher = shorter slide)
-		SlopeAccel = 45, -- speed gained per second on a (theoretical) vertical slope
+		-- Speed lost per second on flat ground (higher = shorter slide). At 25
+		-- a normal slide travels about 15 studs (it was 22, about 17 studs;
+		-- shortened by 2 studs, user ruling 2026-11-12). Slopes have no friction.
+		Friction = 25,
+		SlopeAccel = 40, -- speed gained per second on a (theoretical) vertical slope
 		EndSpeed = 10, -- slide ends (into crouch or walk) when speed falls below this
-		MinTime = 0.25, -- cannot cancel a slide (with crouch or sprint) before this
+		MinTime = 0.22, -- cannot cancel a slide (with crouch or sprint) before this
 		-- How fast the slide direction can turn, radians per second. 1.287 is
 		-- about 74 degrees per second (was 1.2, about 69; raised by 5 degrees
 		-- per second, user ruling 2026-11-12). Higher = the slide steers more.
 		SteerRate = 1.287,
+		-- Camera steering (user request 2026-11-12): turning the view turns
+		-- the slide by this share of the turn, on top of the key steering
+		-- above. 0.5 = look 90 degrees left and the slide bends 45 degrees.
+		-- Speed is kept. 0 = off; 1 = the slide follows the view exactly.
+		CameraSteer = 0.4,
 		-- Sliding down a slope at least this steep (degrees) has no friction
 		-- and does not end until the slope levels out.
 		SlopeMinAngle = 5,
@@ -168,8 +203,8 @@ return {
 		-- 12.5 seconds of sprinting. Higher = shorter sprints.
 		SprintDrain = 8,
 		-- Points per second while wall-running (user ruling 2026-11-11; the
-		-- value is the agent's guess). At 10, the longest wall-run (1.3 s)
-		-- costs 13. Momentum takes up to half off, as for the costs below,
+		-- value is the agent's guess). At 10, a run of about 2.3 s (the
+		-- normal length, see WallRun) costs 23. Momentum takes up to half off, as for the costs below,
 		-- measured when the run starts. A run that has started always
 		-- finishes, even if stamina runs out during it (user rulings 2026-11-12).
 		WallRunDrain = 10,
@@ -181,7 +216,7 @@ return {
 		-- Paid once, when the action starts. Higher = fewer of them per bar.
 		-- Momentum (below) takes up to half off.
 		Costs = {
-			Slide = 15,
+			Slide = 10,
 			Roll = 15, -- ground rolls and air rolls alike
 			Dive = 20,
 		},
@@ -284,9 +319,9 @@ return {
 
 	Mantle = {
 		MinHeight = 1.9, -- same reason as Vault.MinHeight
-		MaxHeight = 6.5,
+		MaxHeight = 10,
 		RiseSpeed = 14, -- studs/second while pulling up
-		ForwardTime = 0.15, -- seconds to move onto the ledge once up
+		ForwardTime = 0.12, -- seconds to move onto the ledge once up
 		ExitSpeed = 10, -- forward speed when the mantle finishes (capped by entry speed)
 		CameraDip = 6, -- small downward look while pulling up
 	},
@@ -304,14 +339,24 @@ return {
 		MaxSpeed = 26,
 		MinAirTime = 0.08, -- must have been airborne this long first
 		MinHeightAboveFloor = 1.0, -- feet must be at least this high
-		CheckDistance = 2.0, -- how close to the wall (from body centre)
+		CheckDistance = 5.0, -- how close to the wall (from body centre)
 		MaxApproachDot = 0.6, -- 0 = must be exactly parallel; higher allows a steeper angle into the wall
+		-- The same limit straight after a wall jump, when you are flying
+		-- across toward the opposite wall at a steep angle. Looser, so a
+		-- jump from one wall to another catches the new wall (user ruling
+		-- 2026-11-12). The new wall starts a fresh run.
+		WallToWallApproachDot = 0.95,
 		StickDistance = 2.5, -- if the wall is further than this, the run ends
 		StickForce = 2, -- small push into the wall to stay on it
 		UpKick = 6, -- upward speed when the run starts
-		Gravity = 12, -- how fast the run curves downward (normal gravity is about 196)
+		-- How fast the run curves downward (normal gravity is about 196).
+		-- There is no time limit: the run lasts until the feet reach the
+		-- ground (or the wall ends, or you jump or drop off). At 6 that is
+		-- about 2.3 s, roughly 50 studs at sprint speed. Lower = longer runs.
+		-- (User ruling 2026-11-12; the values are the agent's guess.)
+		Gravity = 6,
+		FlowGravity = 4, -- the same, for a run started while in FLOW: about 3.4 s
 		Friction = 2, -- speed lost per second
-		MaxDuration = 1.3,
 		WallJumpOut = 14, -- sideways speed away from the wall on a wall jump
 		WallJumpHeight = 3.25, -- height of a wall jump
 		WallJumpKeep = 0.8, -- share of the run speed kept on a wall jump
@@ -323,7 +368,12 @@ return {
 	},
 
 	Camera = {
-		Offset = Vector3.new(0, 0, -0.6), -- pushes the view forward so the torso does not fill the screen
+		Offset = Vector3.new(0, 0, -0.9), -- pushes the view forward so the torso does not fill the screen
+		-- How far down the player can look, in degrees below level (Roblox
+		-- allows 80). Lower = cannot look as far down, so the view never
+		-- ends up inside the character's own body. (User ruling 2026-11-12;
+		-- the value is the agent's guess.)
+		MaxLookDown = 60,
 		BaseFov = 80,
 		SprintFovAdd = 8,
 		SlideFovAdd = 12,
@@ -335,16 +385,22 @@ return {
 	-- Small camera movements that make motion feel physical. "Reduce camera
 	-- motion" in the player's settings turns most of these off.
 	CameraFeel = {
-		BobAmount = 0.20, -- head bob height at sprint speed
+		BobAmount = 0.25, -- head bob height at sprint speed
 		BobFrequency = 0.45, -- bob cycles per stud travelled (scaled)
-		SideBobAmount = 0.10, -- side-to-side sway at sprint speed (one sway left and right per two steps)
+		-- Left/right TILT of the view (degrees) with each pair of steps while
+		-- sprinting forward or on a forward diagonal.
+		SprintSwayTilt = 1.0,
+		-- Side-to-side sway (studs) while WALKING, at walk speed (user ruling
+		-- 2026-11-12). SideBobAmount below covers sprint, crouch and crawl.
+		WalkSideBobAmount = 0.1,
+		SideBobAmount = 0.08, -- side-to-side sway at sprint speed (one sway left and right per two steps)
 		StrafeBobAdd = 0.14, -- extra side-to-side sway (studs) when moving flat sideways
 		StrafeBobTrade = 0.5, -- share of the up-and-down bob removed when moving flat sideways
 		StrafeLean = 1.5, -- tilt when moving sideways
 		WallRunTilt = 10, -- tilt away from the wall while wall-running
 		DipMinFall = 1.5, -- falls shorter than this give no landing dip
-		DipPerStud = 0.08, -- landing dip depth per stud fallen
-		DipMax = 0.9, -- deepest landing dip
+		DipPerStud = 0.10, -- landing dip depth per stud fallen
+		DipMax = 0.12, -- deepest landing dip
 		DipDuration = 0.3,
 		ReducedDipScale = 0.35, -- landing dip size with reduced camera motion
 		ReducedFovScale = 0.5, -- speed FOV change with reduced camera motion

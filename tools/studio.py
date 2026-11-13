@@ -4,6 +4,7 @@
 Studio must be open on the place, with `rojo serve` running and connected.
 
   python3 tools/studio.py test                 play, run the scripted movement tests, print the report, stop
+  python3 tools/studio.py quick                the same, but only the short suite: one check per main feature
   python3 tools/studio.py console              recent Studio output
   python3 tools/studio.py lua Client '<code>'  run Luau in the Client or Server datamodel
   python3 tools/studio.py play | stop          start or stop a play session
@@ -96,7 +97,7 @@ class Studio:
         return "\n".join(line for line in lines if not any(n in line for n in NOISE))
 
 
-def run_tests(studio):
+def run_tests(studio, quick=False):
     studio.call("start_stop_play", {"is_start": False})
     time.sleep(2)
     print(studio.call("start_stop_play", {"is_start": True}).splitlines()[0])
@@ -110,7 +111,10 @@ def run_tests(studio):
     else:
         print("The character never finished loading.")
     time.sleep(1)
-    studio.lua("Client", 'game:GetService("Players").LocalPlayer:SetAttribute("RunMovementTests", os.clock())')
+    # The value picks the suite: "quick <time>" for the short one, a number for the full one.
+    # (It changes every run, so the test script always notices it.)
+    trigger = '"quick " .. os.clock()' if quick else 'os.clock()'
+    studio.lua("Client", 'game:GetService("Players").LocalPlayer:SetAttribute("RunMovementTests", %s)' % trigger)
     report = ""
     for _ in range(100):  # up to 200 seconds; the full run takes about 90
         time.sleep(2)
@@ -133,6 +137,8 @@ def main():
     command = args[0]
     if command == "test":
         run_tests(studio)
+    elif command == "quick":
+        run_tests(studio, quick=True)
     elif command == "console":
         print(studio.console())
     elif command == "lua":

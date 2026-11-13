@@ -211,7 +211,10 @@ function Detection.findWallRunWall(self)
 	local right = along:Cross(Vector3.yAxis)
 	for _, side in { right, -right } do
 		local hit = Workspace:Raycast(self.root.Position, side * wallRun.CheckDistance, self.rayParams)
-		if hit and math.abs(hit.Normal.Y) < 0.2 and math.abs(along:Dot(hit.Normal)) < wallRun.MaxApproachDot then
+		-- Straight after a wall jump you cross to the other wall at a steep
+		-- angle, so the angle limit is looser then.
+		local maxApproach = if self.afterWallJump then wallRun.WallToWallApproachDot else wallRun.MaxApproachDot
+		if hit and math.abs(hit.Normal.Y) < 0.2 and math.abs(along:Dot(hit.Normal)) < maxApproach then
 			local sameWall = self.lastWallNormal and hit.Normal:Dot(self.lastWallNormal) > 0.9
 			if not sameWall then
 				return hit

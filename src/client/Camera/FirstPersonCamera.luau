@@ -3,7 +3,8 @@
 -- feel physical:
 --   - field of view widens with speed;
 --   - head bob while running (up and down, plus a side-to-side sway),
---     scaled by speed;
+--     scaled by speed, and a left/right tilt with the steps when sprinting;
+--   - the view cannot look further down than Camera.MaxLookDown;
 --   - a dip on landing, deeper for bigger falls;
 --   - a slight lean when strafing, a tilt while sliding, and a stronger tilt
 --     away from the wall while wall-running;
@@ -120,8 +121,18 @@ function FirstPersonCamera:_update(dt: number)
 	if controller.quickTurnRemaining > 0 then
 		local step = math.min(controller.quickTurnRemaining, math.pi / Config.QuickTurn.Duration * dt)
 		controller.quickTurnRemaining -= step
+		controller.quickTurnApplied += step -- so it is not mistaken for camera steering
 		local cf = camera.CFrame
 		camera.CFrame = CFrame.new(cf.Position) * CFrame.Angles(0, step, 0) * cf.Rotation
+	end
+
+	-- Stop the view going further down than MaxLookDown, so it never ends
+	-- up inside the player's own body. Like the quick turn, this correction
+	-- is applied straight to the camera so that it sticks.
+	local lookDown = -math.asin(math.clamp(camera.CFrame.LookVector.Y, -1, 1))
+	local excess = lookDown - math.rad(cameraConfig.MaxLookDown)
+	if excess > 0 then
+		camera.CFrame *= CFrame.Angles(excess, 0, 0)
 	end
 
 	-- Field of view widens with speed.
@@ -173,7 +184,22 @@ function FirstPersonCamera:_update(dt: number)
 		sideness = math.abs((controller.velocity / speed):Dot(flatRight.Unit))
 	end
 	local bobY = math.sin(self.bobPhase * 2) * self.bobWeight * feel.BobAmount * (1 - feel.StrafeBobTrade * sideness)
-	local bobX = math.sin(self.bobPhase) * self.bobWeight * (feel.SideBobAmount + feel.StrafeBobAdd * sideness)
+	-- Walking has its own sway amount, reached in full at walk speed
+	-- (bobWeight is speed / sprint speed, so it is scaled back up here).
+	local sideAmount = feel.SideBobAmount
+	if state == "Walk" then
+		sideAmount = feel.WalkSideBobAmount * Config.SprintSpeed / Config.WalkSpeed
+	end
+	local bobX = math.sin(self.bobPhase) * self.bobWeight * (sideAmount + feel.StrafeBobAdd * sideness)
+
+	-- Sprint sway: the view tilts left and right with the steps while
+	-- sprinting forward or on a forward diagonal (none flat sideways or
+	-- backwards). It follows the same rhythm as the sideways bob.
+	local sway = 0
+	if state == "Sprint" and speed > 1 then
+		local forwardness = math.max(controller.velocity:Dot(controller.forward) / speed, 0)
+		sway = math.sin(self.bobPhase) * self.bobWeight * math.rad(feel.SprintSwayTilt) * forwardness
+	end
 
 	-- Landing dip (not after a roll, which has its own camera movement).
 	if controller.landedAt ~= self.lastLandingSeen then
@@ -191,7 +217,7 @@ function FirstPersonCamera:_update(dt: number)
 	-- Combine this frame's effects.
 	local effect = CFrame.new(bobX, bobY - dip, 0)
 		* CFrame.Angles(controller.cameraPitch * motion, 0, 0)
-		* CFrame.Angles(0, 0, self.tilt)
+		* CFrame.Angles(0, 0, self.tilt + sway)
 	camera.CFrame *= effect
 	self.applied = effect
 end

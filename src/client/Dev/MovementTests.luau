@@ -44,7 +44,8 @@ local ACTIONS = { "Sprint", "Crouch", "Jump", "Roll" }
 
 local MovementTests = {}
 
-local function run(input, c): string
+-- `mode` is "quick" for the short suite, anything else for the full one.
+local function run(input, c, mode: string): string
 	local lines = {}
 	local passed, total = 0, 0
 
@@ -158,6 +159,8 @@ local function run(input, c): string
 		end, 3)
 		-- A jump in the previous test must not leave its cooldown running.
 		c._jumpLandedAt = -math.huge
+		c.jumpCount = 0 -- nor jump fatigue
+		c._jumpFatigueUntil = -math.huge
 		-- Nor may the previous test's stamina use or FLOW chain carry over.
 		c.stamina:refill()
 		c.flow:reset()
@@ -187,11 +190,13 @@ local function run(input, c): string
 			tap("Crouch") -- a tap, not a hold: the slide must carry on by itself
 			local slid = sawState("Slide", 0.3)
 			check("tap crouch while sprinting slides, with a boost", slid and c:getSpeed() > Config.SprintSpeed, now())
-			-- Sprint is let go, or the crouch at the end would stand straight
-			-- back up into a sprint.
-			release("Sprint")
-			check("slide ends in crouch", sawState("Crouch", 3), now())
+			-- Sprint still held: the slide ends by itself, back into a sprint.
+			check("slide ends in a sprint", sawState("Sprint", 3), now())
 
+			release("Sprint")
+			sawState("Walk", 1)
+			tap("Crouch")
+			sawState("Crouch", 0.5)
 			task.wait(1)
 			check(
 				"crouch stays without the key, at crouch speed and height",
@@ -236,18 +241,18 @@ local function run(input, c): string
 			)
 		end,
 
-		function() -- Toggle sprint mode: crouching clears the switch
+		function() -- Toggle sprint mode: the switch survives a slide
 			Settings.set("SprintMode", "Toggle")
 			place(0, 120)
 			move(NORTH)
 			tap("Sprint")
 			sawState("Sprint", 1)
 			task.wait(1.2) -- let the sprint build up, or it is too slow to slide
-			tap("Crouch") -- slides, and must end crouched rather than sprinting again
+			tap("Crouch") -- slides, and ends back in a sprint with the switch still on
 			local slid = sawState("Slide", 0.5)
 			check(
-				"a slide clears the sprint switch, so it ends crouched",
-				slid and sawState("Crouch", 3) and not c.sprintOn,
+				"with the sprint switch on, a slide ends in a sprint",
+				slid and sawState("Sprint", 3) and c.sprintOn,
 				string.format("%s, switch %s", now(), tostring(c.sprintOn))
 			)
 		end,
@@ -285,7 +290,10 @@ local function run(input, c): string
 				slid and c.stateName == "Slide" and near(c:getSpeed(), cap, 0.5),
 				string.format("%s at %.1f (cap %d)", c.stateName, c:getSpeed(), cap)
 			)
-			check("slope slide ends in crouch on the flat", sawState("Crouch", 4) and heightAboveCourse() < 1, now())
+			local ended = waitFor(function()
+				return c.stateName ~= "Slide"
+			end, 4)
+			check("slope slide carries on until the flat", ended and heightAboveCourse() < 1, now())
 		end,
 
 		function() -- a slope slide started in FLOW has the higher cap
@@ -305,7 +313,9 @@ local function run(input, c): string
 				slid and c.stateName == "Slide" and near(c:getSpeed(), cap, 0.5),
 				string.format("%s at %.1f (cap %d)", c.stateName, c:getSpeed(), cap)
 			)
-			sawState("Crouch", 4)
+			waitFor(function()
+				return c.stateName ~= "Slide"
+			end, 4)
 		end,
 
 		function() -- a flat slide never travels further than Slide.MaxFlatDistance
@@ -356,6 +366,172 @@ local function run(input, c): string
 				"the FLOW speed goes when the chain ends",
 				not c.flow:inFlow() and near(c:getSpeed(), Config.SprintSpeed, 0.5),
 				string.format("%.1f", c:getSpeed())
+			)
+			release("Sprint")
+		end,
+
+		function() -- hotfixes 2026-11-12: slide direction and length, wall-run needs a sprint, look-down limit, sprint sway
+			local camera = workspace.CurrentCamera
+
+			-- Sliding backwards is not possible.
+			place(0, 120)
+			c.forwardOverride = NORTH
+			move(SOUTH)
+			hold("Sprint")
+			task.wait(1.2)
+			tap("Crouch")
+			-- (It crouches instead, and the held sprint key then stands back up.)
+			check("no slide while sprinting backwards", not sawState("Slide", 0.4), now())
+			release("Sprint")
+
+			-- No diagonal slide either.
+			place(0, 120)
+			c.forwardOverride = NORTH
+			move((NORTH + EAST).Unit)
+			hold("Sprint")
+			task.wait(1.2)
+			tap("Crouch")
+			check("no slide on a forward diagonal", not sawState("Slide", 0.4), now())
+			release("Sprint")
+			c.forwardOverride = nil
+
+			-- A normal flat slide is about 15 studs.
+			place(0, 120)
+			move(NORTH)
+			hold("Sprint")
+			task.wait(1.2)
+			tap("Crouch")
+			local slid = sawState("Slide", 0.3)
+			local startZ = courseZ()
+			release("Sprint")
+			waitFor(function()
+				return c.stateName ~= "Slide"
+			end, 3)
+			local travelled = startZ - courseZ()
+			check("a normal flat slide travels about 15 studs", slid and near(travelled, 15, 2), string.format("%.1f studs", travelled))
+
+			-- A sprint sways the view left and right.
+			place(0, 120)
+			move(NORTH)
+			hold("Sprint")
+			task.wait(1)
+			local most = 0
+			local untilTime = os.clock() + 1
+			while os.clock() < untilTime do
+				local _, _, roll = camera.CFrame:ToOrientation()
+				most = math.max(most, math.abs(math.deg(roll)))
+				RunService.RenderStepped:Wait()
+			end
+			check(
+				"sprinting forward tilts the view left and right",
+				most > Config.CameraFeel.SprintSwayTilt * 0.5,
+				string.format("up to %.2f degrees", most)
+			)
+			release("Sprint")
+			move(Vector3.zero)
+
+			-- The view cannot go further down than MaxLookDown.
+			task.wait(0.5)
+			local position = camera.CFrame.Position
+			camera.CFrame = CFrame.lookAt(position, position + Vector3.new(0, -1, -0.1)) -- nearly straight down
+			task.wait(0.3)
+			local down = -math.deg(math.asin(camera.CFrame.LookVector.Y))
+			check(
+				"the view cannot look further down than the limit",
+				near(down, Config.Camera.MaxLookDown, 1.5),
+				string.format("%.1f degrees down (limit %d)", down, Config.Camera.MaxLookDown)
+			)
+			camera.CFrame = CFrame.lookAt(position, position + NORTH)
+
+			-- Walking (at the wall-run's minimum speed) and jumping beside a wall does not wall-run.
+			place(-48.6, -62)
+			move(NORTH)
+			waitFor(function()
+				return courseZ() <= -74
+			end, 3)
+			tap("Jump")
+			check("no wall-run without a sprint first", not sawState("WallRun", 1), now())
+		end,
+
+		function() -- hotfixes 2026-11-12 (second set): how a slide ends; wall to wall; FLOW wall-run
+			-- Crouch pressed during the slide: it ends in a crouch.
+			place(0, 120)
+			move(NORTH)
+			hold("Sprint")
+			task.wait(1.2)
+			tap("Crouch")
+			local slid = sawState("Slide", 0.3)
+			task.wait(Config.Slide.MinTime + 0.05)
+			release("Sprint")
+			tap("Crouch")
+			check("crouch pressed during a slide ends it in a crouch", slid and sawState("Crouch", 0.5), now())
+
+			-- Out of stamina: the slide ends in a walk, even with sprint held.
+			tune(Config.Stamina, "RegenRate", 0)
+			place(0, 120)
+			move(NORTH)
+			hold("Sprint")
+			task.wait(1.2)
+			c.stamina:set(2) -- the slide's cost takes the last of it
+			tap("Crouch")
+			slid = sawState("Slide", 0.3)
+			check("out of stamina, a slide ends in a walk", slid and sawState("Walk", 3), now())
+			release("Sprint")
+			untune()
+
+			-- A wall jump carries you to the opposite wall, which starts a fresh run.
+			place(-48.6, -62)
+			move(NORTH)
+			hold("Sprint")
+			waitFor(function()
+				return courseZ() <= -74
+			end, 3)
+			tap("Jump")
+			local first = sawState("WallRun", 1)
+			task.wait(0.3)
+			tap("Jump")
+			local second = waitFor(function()
+				return c.stateName == "WallRun" and c.wallNormal ~= nil and c.wallNormal.X > 0.5
+			end, 1.5)
+			check(
+				"a wall jump onto the opposite wall starts a new wall-run",
+				first and second,
+				string.format("%s, wall normal x %s", now(), if c.wallNormal then string.format("%.1f", c.wallNormal.X) else "-")
+			)
+			release("Sprint")
+
+			-- No time limit: a run along the 60 stud wall lasts more than the old 1.3 s.
+			place(-48.6, -62)
+			move(NORTH)
+			hold("Sprint")
+			waitFor(function()
+				return courseZ() <= -74
+			end, 3)
+			tap("Jump")
+			sawState("WallRun", 1)
+			local started = os.clock()
+			waitFor(function()
+				return c.stateName ~= "WallRun"
+			end, 5)
+			local normalTime = os.clock() - started
+			check("a wall-run lasts until the ground, past the old 1.3 s limit", normalTime > 1.6, string.format("%.2f s", normalTime))
+			release("Sprint")
+
+			-- Started in FLOW, it curves down more slowly.
+			place(-48.6, -62)
+			c.flow.count = Config.Flow.MinActions
+			c.flow.lastEndedAt = os.clock()
+			move(NORTH)
+			hold("Sprint")
+			waitFor(function()
+				return courseZ() <= -74
+			end, 3)
+			tap("Jump")
+			local ran = sawState("WallRun", 1)
+			check(
+				"a wall-run started in FLOW uses the flatter curve",
+				ran and c.wallRun ~= nil and c.wallRun.gravity == Config.WallRun.FlowGravity,
+				now()
 			)
 			release("Sprint")
 		end,
@@ -1328,6 +1504,155 @@ local function run(input, c): string
 		end,
 	}
 
+	-- The quick suite (`python3 tools/studio.py quick`): one pass over the
+	-- main features, one check each. Every line says what was done (input)
+	-- and what happened (output), so a failure can be read without opening
+	-- this file.
+	local function expect(name: string, given: string, ok: boolean, got: string)
+		check(name, ok, `input: {given} | output: {got}`)
+	end
+
+	local quickTests = {
+		function()
+			place(0, 120)
+			move(NORTH)
+			task.wait(1.5)
+			expect("walk", "W for 1.5 s", c.stateName == "Walk" and near(c:getActualSpeed(), Config.WalkSpeed, 1), now() .. ` (want Walk at {Config.WalkSpeed})`)
+
+			hold("Sprint")
+			task.wait(1.5)
+			expect("sprint", "W + Shift for 1.5 s", c.stateName == "Sprint" and near(c:getActualSpeed(), Config.SprintSpeed, 1), now() .. ` (want Sprint at {Config.SprintSpeed})`)
+
+			tap("Crouch")
+			local slid = sawState("Slide", 0.3)
+			expect("slide", "tap C while sprinting", slid and c:getSpeed() > Config.SprintSpeed, now() .. ` (want Slide above {Config.SprintSpeed})`)
+			expect("slide ends in a sprint", "keep Shift held", sawState("Sprint", 3), now() .. " (want Sprint)")
+
+			release("Sprint")
+			sawState("Walk", 1)
+			tap("Crouch")
+			local crouched = sawState("Crouch", 0.5)
+			task.wait(1)
+			expect("crouch", "let go of Shift, tap C, keep W", crouched and near(c:getActualSpeed(), Config.CrouchSpeed, 1), now() .. ` (want Crouch at {Config.CrouchSpeed})`)
+		end,
+
+		function()
+			place(0, 120)
+			holdCrouch()
+			expect("prone", "hold C, standing", sawState("Prone", 0.5), now() .. " (want Prone)")
+		end,
+
+		function()
+			place(0, 120)
+			move(NORTH)
+			hold("Sprint")
+			task.wait(1.2)
+			hold("Crouch")
+			local dived = sawState("Dive", 0.6)
+			local prone = sawState("Prone", 2)
+			release("Crouch")
+			expect("dive", "hold C while sprinting", dived and prone, now() .. " (want Dive, landing Prone)")
+		end,
+
+		function()
+			place(0, 120)
+			local peak = 0
+			tap("Jump")
+			sawState("Air", 0.5)
+			waitFor(function()
+				peak = math.max(peak, heightAboveCourse())
+				return c.root.AssemblyLinearVelocity.Y < 0 and heightAboveCourse() < 1.5
+			end, 2)
+			expect("jump", "Space, standing", near(peak, Config.JumpHeight, 0.75), string.format("peak %.2f studs (want %s)", peak, Config.JumpHeight))
+		end,
+
+		function()
+			place(0, 120)
+			move(NORTH)
+			task.wait(0.5)
+			tap("Roll")
+			expect("roll", "Ctrl while walking", sawState("Roll", 0.5), now() .. " (want Roll)")
+		end,
+
+		function()
+			place(95, 120)
+			move(NORTH)
+			hold("Sprint")
+			local vaulted = sawState("Vault", 3)
+			waitFor(function()
+				return c.stateName ~= "Vault" and c.airTime == 0
+			end, 2)
+			expect("vault", "sprint into the 2 stud box", vaulted and courseZ() < 108.5, string.format("%s, z %.1f (want Vault, past z 108.5)", c.stateName, courseZ()))
+		end,
+
+		function()
+			place(95, 30)
+			move(NORTH)
+			local mantled = sawState("Mantle", 3)
+			sawState("Walk", 2)
+			expect("mantle", "walk into the 4 stud box", mantled and near(heightAboveCourse(), 4, 0.5), string.format("%.1f up (want 4)", heightAboveCourse()))
+		end,
+
+		function()
+			place(60, -110)
+			move(NORTH)
+			waitFor(function()
+				return courseZ() <= -114.5
+			end, 2)
+			tap("Jump")
+			local hung = sawState("LedgeHang", 1.5)
+			move(Vector3.zero)
+			task.wait(0.2)
+			tap("Jump")
+			sawState("Mantle", 0.5)
+			sawState("Walk", 2)
+			expect("ledge grab and pull up", "jump at the 8 stud wall, then Space", hung and near(heightAboveCourse(), 8, 0.5), string.format("hung %s, %.1f up (want 8)", tostring(hung), heightAboveCourse()))
+		end,
+
+		function()
+			place(-48.6, -62)
+			move(NORTH)
+			hold("Sprint")
+			waitFor(function()
+				return courseZ() <= -74
+			end, 3)
+			tap("Jump")
+			expect("wall-run", "sprint beside the wall, Space", sawState("WallRun", 1), now() .. " (want WallRun)")
+			task.wait(0.3)
+			tap("Jump")
+			task.wait(0.15)
+			expect("wall jump", "Space during the wall-run", c.stateName == "Air" and c.velocity.X < -5, string.format("%s, x speed %.1f (want Air, below -5)", c.stateName, c.velocity.X))
+			release("Sprint")
+		end,
+
+		function()
+			tune(Config.Stamina, "RegenRate", 0)
+			place(0, 120)
+			move(NORTH)
+			hold("Sprint")
+			sawState("Sprint", 1)
+			local before, started = c.stamina.current, os.clock()
+			task.wait(1)
+			local used, want = before - c.stamina.current, Config.Stamina.SprintDrain * (os.clock() - started)
+			expect("stamina", "sprint for 1 s", near(used, want, 1.5), string.format("used %.1f (want %.1f)", used, want))
+			release("Sprint")
+		end,
+
+		function()
+			tune(Config.Stamina, "SprintDrain", 0)
+			place(0, 120)
+			move(NORTH)
+			hold("Sprint")
+			task.wait(1.5)
+			c.flow.count = Config.Flow.MinActions -- as if a chain had just been completed
+			c.flow.lastEndedAt = os.clock()
+			task.wait(1.5)
+			local want = Config.SprintSpeed + Config.Flow.SprintSpeedAdd
+			expect("FLOW", "sprint, chain completed", c.flow:inFlow() and near(c:getSpeed(), want, 0.5), string.format("%.1f, in FLOW %s (want %s)", c:getSpeed(), tostring(c.flow:inFlow()), want))
+			release("Sprint")
+		end,
+	}
+
 	local clamberMode = Settings.get("ClamberMode")
 	Settings.set("ClamberMode", "Auto")
 	-- Every check below holds the sprint key down and lets it go to stop, so
@@ -1335,7 +1660,7 @@ local function run(input, c): string
 	-- has its own checks, which switch the setting themselves.
 	local sprintMode = Settings.get("SprintMode")
 	Settings.set("SprintMode", "Hold")
-	for index, test in tests do
+	for index, test in (if mode == "quick" then quickTests else tests) do
 		local ok, err = pcall(test)
 		if not ok then
 			check("test " .. index .. " stopped early", false, tostring(err))
@@ -1366,7 +1691,10 @@ function MovementTests.start(input, getController: () -> any)
 		end
 		running = true
 		player:SetAttribute(REPORT, nil)
-		local ok, report = pcall(run, input, controller)
+		-- The trigger's value says which suite: "quick ..." or a number (full).
+		local value = player:GetAttribute(TRIGGER)
+		local mode = if typeof(value) == "string" and string.sub(value, 1, 5) == "quick" then "quick" else "full"
+		local ok, report = pcall(run, input, controller, mode)
 		player:SetAttribute(REPORT, if ok then report else "ERROR " .. tostring(report))
 		running = false
 	end)

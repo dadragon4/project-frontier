@@ -5,7 +5,7 @@ Current state and the active checklist only. Decisions, conflicts (`Cn`) and que
 ## Current state (2026-11-11)
 
 - Milestone 1 (movement prototype) is nearly complete. Every planned ability is built; what is left is listed below.
-- 106 scripted checks pass in Studio (`python3 tools/studio.py test`). The user has tuned the core speeds; looks have not been checked by eye, and the full tuning pass is still to come.
+- 117 scripted checks in Studio (`python3 tools/studio.py test`; `quick` runs a 16-check short suite). The 2026-11-12 second hotfix set has not been run yet; before it, all 112 passed. The user has tuned the core speeds; looks have not been checked by eye, and the full tuning pass is still to come.
 - Code is in the GitHub repo `dadragon4/project-frontier`; the place file is shared through Roblox and is not in git.
 - Stamina and FLOW are built on the `Stamina` branch (not merged): sprint drain, one-time costs, recovery, exhaustion, the momentum discount, chain rewards, the manual clamber refund, and the wall-run and ledge-hang drains; exhaustion blocks everything that needs stamina; plus the slide changes of 2026-11-11 (no roll out of a slide, sprint cuts a slide, slide cooldown). All their numbers are initial tuning values.
 - **Next:** the user plays the test course and tunes, stamina and FLOW included; then weight.
@@ -34,7 +34,7 @@ A box is ticked only once the item has been run and checked in Studio. What exac
 **Left:**
 
 - [ ] Weight modifier (lowers top speed), driven by a hand-set test value — needs Q6 values.
-- [ ] Check by eye: the visible first-person body, head bob (including strafe bob), roll camera, landing dip.
+- [x] Check by eye: the visible first-person body, head bob (including strafe bob), roll camera, landing dip.
 - [ ] Server plausibility checks, stamina included (first check Roblox's built-in server-authority status).
 - [ ] Two-client multiplayer test.
 - [ ] Basic traversal animations and camera polish; lay the prone body flat (waits for the custom rig).

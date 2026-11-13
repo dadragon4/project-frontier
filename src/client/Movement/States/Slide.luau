@@ -2,11 +2,17 @@
 -- and slopes add or remove speed. Jumping out of a slide keeps the speed
 -- (the Air state takes over as soon as the character leaves the ground).
 --
--- Started by tapping crouch while sprinting; the key does not need to be
--- held. On flat ground it ends, crouched, when the speed runs out or after
--- Slide.MaxFlatDistance studs. Down a slope there is no friction and it
+-- Started by tapping crouch while sprinting straight ahead; the key does
+-- not need to be held. On flat ground it ends when the speed runs out or
+-- after Slide.MaxFlatDistance studs. Down a slope there is no friction and it
 -- carries on until the slope levels out, at no more than Slide.SlopeMaxSpeed.
--- Pressing crouch again ends it early (into a crouch); so does jumping.
+--
+-- How it ends (user ruling 2026-11-12): back into a SPRINT, unless
+--   - crouch is pressed during it: it ends in a crouch;
+--   - the player is out of stamina: it ends in a walk.
+-- (Under a low roof it ends crouched, wherever it was going. In Hold sprint
+-- mode with the key let go, the sprint becomes a walk on the next frame.)
+-- Jumping ends it too, into the air.
 -- Pressing sprint again cuts it short, straight back into a sprint.
 -- The roll key does nothing during a slide (user ruling 2026-11-11).
 --
@@ -17,8 +23,13 @@ local Slide = {
 	staminaCost = "Slide", -- paid once, when the slide starts
 	flowAction = "Slide", -- counts toward a FLOW chain
 	allowsClamber = true, -- vault / mantle can start from here
-	clearsSprintToggle = true, -- you come out of a slide crouched, not sprinting
 }
+
+-- Where a slide goes when it ends by itself: back into a sprint, or a walk
+-- if stamina has run out.
+local function finished(ctx): string
+	return if ctx:canUseStamina() then "Sprint" else "Walk"
+end
 
 function Slide.enter(ctx)
 	local slide = ctx.config.Slide
@@ -54,9 +65,13 @@ function Slide.update(ctx, dt: number): string?
 
 	local speed = ctx:getSpeed()
 	if speed < 0.01 then
-		return "Crouch"
+		return finished(ctx)
 	end
 	local direction = ctx.velocity / speed
+
+	-- Camera steering: turning the view turns the slide by a share of the
+	-- turn (Slide.CameraSteer), with or without a key held.
+	direction = ctx:cameraSteered(direction, slide.CameraSteer)
 
 	-- Limited steering toward where the player is pushing.
 	if ctx.wishDir ~= Vector3.zero then
@@ -94,13 +109,13 @@ function Slide.update(ctx, dt: number): string?
 
 	-- A flat slide never travels further than MaxFlatDistance.
 	if ctx.slideFlatDistance >= slide.MaxFlatDistance then
-		return "Crouch"
+		return finished(ctx)
 	end
 
-	-- Out of speed: the slide ends in a crouch. (Not on a downward slope,
-	-- where it keeps going until the slope levels out.)
+	-- Out of speed. (Not on a downward slope, where it keeps going until the
+	-- slope levels out.)
 	if speed < slide.EndSpeed and not onDownSlope then
-		return "Crouch"
+		return finished(ctx)
 	end
 
 	-- Pressing sprint again cuts the slide short, straight into a sprint.
