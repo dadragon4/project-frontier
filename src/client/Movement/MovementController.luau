@@ -623,8 +623,9 @@ function MovementController:_checkGroundRoll(): string?
 		self.state.allowsGroundRoll
 		and self.grounded
 		and self:getSpeed() > 1
-		-- Not while moving backwards.
-		and self.velocity:Dot(self.forward) > 0
+		-- Forwards only (user ruling 2026-11-13): strafing and moving
+		-- backwards do not roll, the same window a slide uses.
+		and self.velocity.Unit:Dot(self.forward) >= Config.Roll.MinForwardDot
 		and self:canUseStamina()
 		and self.input.isBuffered("Roll", Config.Buffer.Roll)
 	then

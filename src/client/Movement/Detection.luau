@@ -14,6 +14,12 @@ local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Co
 
 local Detection = {}
 
+-- _probeTop's "is this obstacle taller than we can use?" box: its size, and
+-- how far above the highest usable top it sits. The clearance is more than
+-- half the box (see _probeTop).
+local PROBE_BOX = 0.2
+local PROBE_CLEARANCE = 0.2
+
 local function planar(v: Vector3): Vector3
 	return Vector3.new(v.X, 0, v.Z)
 end
@@ -34,14 +40,18 @@ end
 -- heights minTopY and maxTopY. Returns the RaycastResult on the top, or nil.
 function Detection._probeTop(self, wallHit: RaycastResult, inward: Vector3, minTopY: number, maxTopY: number)
 	local probe = wallHit.Position + inward * 0.6
-	local probeTop = Vector3.new(probe.X, maxTopY + 0.05, probe.Z)
+	local probeTop = Vector3.new(probe.X, maxTopY + PROBE_CLEARANCE, probe.Z)
 	-- If the obstacle is taller than maxTopY, this probe starts inside it. A
-	-- ray that starts inside a part does not hit that part, so the check
-	-- below catches that case instead.
-	if self:isBlocked(CFrame.new(probeTop), Vector3.new(0.2, 0.2, 0.2)) then
+	-- ray that starts inside a part does not hit that part, so this box
+	-- catches that case instead. The clearance above maxTopY has to stay
+	-- bigger than half the box, or a top sitting exactly at maxTopY reaches
+	-- into the box and the obstacle is wrongly called too tall: a ledge of
+	-- exactly LedgeGrab.MaxHeight could then never be grabbed.
+	if self:isBlocked(CFrame.new(probeTop), Vector3.new(PROBE_BOX, PROBE_BOX, PROBE_BOX)) then
 		return nil
 	end
-	local topHit = Workspace:Raycast(probeTop, Vector3.new(0, -(maxTopY - minTopY + 0.1), 0), self.rayParams)
+	-- Long enough to reach minTopY from the raised start.
+	local topHit = Workspace:Raycast(probeTop, Vector3.new(0, -(maxTopY - minTopY + PROBE_CLEARANCE + 0.1), 0), self.rayParams)
 	if not topHit or topHit.Normal.Y < 0.7 then
 		return nil
 	end

@@ -5,7 +5,7 @@ Current state and the active checklist only. Decisions, conflicts (`Cn`) and que
 ## Current state (2026-11-11)
 
 - Milestone 1 (movement prototype) is nearly complete. Every planned ability is built; what is left is listed below.
-- 117 scripted checks in Studio (`python3 tools/studio.py test`; `quick` runs a 16-check short suite). The 2026-11-12 second hotfix set has not been run yet; before it, all 112 passed. The user has tuned the core speeds; looks have not been checked by eye, and the full tuning pass is still to come.
+- 119 scripted checks in Studio (`python3 tools/studio.py test`; `quick` runs a 16-check short suite). `quick` passes 16/16 after the 2026-11-13 fixes (ledge grab, slope slide caps, sideways roll, slide friction, mantle ceiling, wall jump height). **The full suite has not been run since those fixes**; its last run was 110/119, and the nine failures are discussed in `MOVEMENT_SPEC.md`. The user has tuned the core speeds; looks have not been checked by eye, and the full tuning pass is still to come.
 - Code is in the GitHub repo `dadragon4/project-frontier`; the place file is shared through Roblox and is not in git.
 - Stamina and FLOW are built on the `Stamina` branch (not merged): sprint drain, one-time costs, recovery, exhaustion, the momentum discount, chain rewards, the manual clamber refund, and the wall-run and ledge-hang drains; exhaustion blocks everything that needs stamina; plus the slide changes of 2026-11-11 (no roll out of a slide, sprint cuts a slide, slide cooldown). All their numbers are initial tuning values.
 - **Next:** the user plays the test course and tunes, stamina and FLOW included; then weight.

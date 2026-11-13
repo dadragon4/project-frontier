@@ -860,6 +860,27 @@ local function run(input, c, mode: string): string
 			check("pull up from a hang", near(heightAboveCourse(), 8, 0.5), string.format("%.1f up", heightAboveCourse()))
 		end,
 
+		function() -- ledge grab on the 10 stud block, then pull up
+			place(-100, 10)
+			move(NORTH)
+			waitFor(function()
+				return c.root.Position.Z - ORIGIN.Z <= -4.5
+			end, 2)
+			tap("Jump")
+			local hung = sawState("LedgeHang", 1.5)
+			check("ledge grab on the 10 stud block", hung, now())
+			move(Vector3.zero)
+			task.wait(0.2)
+			tap("Jump")
+			sawState("Mantle", 0.5)
+			sawState("Walk", 2)
+			check(
+				"pull up onto the 10 stud block",
+				hung and near(heightAboveCourse(), 10, 0.5),
+				string.format("%.1f up", heightAboveCourse())
+			)
+		end,
+
 		function() -- wall-run along the wall-run wall, then wall jump
 			place(-48.6, -62)
 			move(NORTH)
@@ -1134,6 +1155,8 @@ local function run(input, c, mode: string): string
 			)
 			sawState("Walk", 2)
 
+			-- Strafing does not roll at all any more (user ruling 2026-11-13),
+			-- so nothing starts and nothing is charged.
 			place(0, 120)
 			c.forwardOverride = NORTH -- looking up the course, moving sideways
 			move(EAST)
@@ -1142,9 +1165,9 @@ local function run(input, c, mode: string): string
 			tap("Roll")
 			rolled = sawState("Roll", 0.5)
 			check(
-				"a sideways roll gets no discount",
-				rolled and near(before - s.current, costs.Roll, 0.3),
-				string.format("cost %.2f, discount %.0f%%", before - s.current, c.lastMomentumDiscount * 100)
+				"a sideways roll does not start, and costs nothing",
+				not rolled and near(s.current, before, 0.01),
+				string.format("%s, stamina %.2f", now(), s.current)
 			)
 			c.forwardOverride = nil
 			sawState("Walk", 2)

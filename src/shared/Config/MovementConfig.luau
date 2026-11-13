@@ -96,14 +96,19 @@ return {
 		SlopeMaxSpeed = 28, -- top speed down a slope
 		FlowSlopeMaxSpeed = 30, -- the same, for a slide started in FLOW
 		MaxFlatDistance = 25, -- the furthest a slide goes on flat ground
-		Friction = 25, -- speed lost per second on flat ground (25 = about 15 studs)
+		-- Speed lost per second on flat ground. A slide entered at MaxSpeed
+		-- travels (MaxSpeed^2 - EndSpeed^2) / (2 * Friction) studs, so 19.2
+		-- gives the 15 studs asked for (user ruling 2026-11-13; 25 was in
+		-- fact 11.5 studs, not the 15 its comment claimed).
+		Friction = 19.2,
 		SlopeAccel = 40, -- speed gained per second on a (theoretical) vertical slope
 		EndSpeed = 10, -- the slide ends below this speed
 		MinTime = 0.22, -- crouch or sprint cannot end a slide before this
-		SteerRate = 1.287, -- key steering, radians per second (about 74 degrees)
-		-- Turning the view turns the slide by this share of the turn.
-		-- 0 = off, 1 = the slide follows the view exactly.
-		CameraSteer = 0.4,
+		-- How fast a slide turns toward where the player is looking, in
+		-- radians per second (1.287 = about 74 degrees). This is the only
+		-- steering a slide has: no key steering, and nothing that depends on
+		-- how fast the mouse is moved (user ruling 2026-11-13).
+		SteerRate = 1.287,
 		SlopeMinAngle = 5, -- slopes at least this steep have no friction
 	},
 
@@ -139,6 +144,11 @@ return {
 		Duration = 0.55,
 		MinSpeed = 10, -- a roll always moves at least this fast
 		MaxSpeed = 24, -- faster than this is trimmed
+		-- A ground roll only goes forwards: movement must be within this of
+		-- where the player is looking, so strafing and backing away do not
+		-- roll (user ruling 2026-11-13). 0.9 is about 25 degrees, the same
+		-- window a slide uses (Slide.MinForwardDot).
+		MinForwardDot = 0.9,
 		Friction = 6, -- speed lost per second during the roll
 		CameraSpin = 360, -- camera turn over the roll; 0 = off
 	},
@@ -230,7 +240,10 @@ return {
 
 	Mantle = {
 		MinHeight = 1.9, -- same reason as Vault.MinHeight
-		MaxHeight = 10,
+		-- 6.5, not 10: above this a ledge is hung from instead (user ruling
+		-- 2026-11-13). At 10, the same as LedgeGrab.MaxHeight, everything
+		-- within reach mantled and a ledge could never be hung from.
+		MaxHeight = 6.5,
 		RiseSpeed = 14, -- speed while pulling up
 		ForwardTime = 0.12, -- time to move onto the ledge once up
 		ExitSpeed = 10, -- forward speed at the end (never more than you arrived with)
@@ -261,8 +274,18 @@ return {
 		Gravity = 3,
 		FlowGravity = 2, -- the same, for a run started in FLOW (about 3 s)
 		Friction = 2, -- speed lost per second
-		WallJumpOut = 14, -- sideways speed away from the wall on a wall jump
-		WallJumpHeight = 3.25, -- height of a wall jump
+		-- Sideways speed away from the wall on a wall jump. 23, not 14, so a
+		-- wall jump actually crosses to the opposite wall (user ruling
+		-- 2026-11-13). The crossing needs about 6 studs sideways before the
+		-- far wall comes within CheckDistance, and the whole flight lasts
+		-- only about 0.45 s while airSteer pulls the sideways speed back
+		-- toward whatever direction is being pushed (AirAccel), so 14 covered
+		-- barely half of it and the player landed first.
+		WallJumpOut = 23,
+		-- Height of a wall jump. 5, not 3.25, so the flight lasts long enough
+		-- for the crossing above with the flattened run arc (user ruling
+		-- 2026-11-13).
+		WallJumpHeight = 5,
 		WallJumpKeep = 0.8, -- share of run speed kept on a wall jump
 	},
 
@@ -295,9 +318,9 @@ return {
 		StrafeLean = 1.5, -- tilt when moving sideways
 		WallRunTilt = 10, -- tilt away from the wall while wall-running
 		DipMinFall = 1.5, -- shorter falls give no landing dip
-		DipPerStud = 0.10, -- landing dip depth per stud fallen
-		DipMax = 0.12, -- deepest landing dip
-		DipDuration = 0.3,
+		DipPerStud = 0.20, -- landing dip depth per stud fallen
+		DipMax = 0.22, -- deepest landing dip
+		DipDuration = 0.4,
 		ReducedDipScale = 0.35, -- landing dip size with reduced camera motion
 		ReducedFovScale = 0.5, -- speed field-of-view change with reduced camera motion
 		SideTilt = 0.5, -- tilt when moving sideways (with reduced camera motion)

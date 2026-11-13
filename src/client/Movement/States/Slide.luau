@@ -60,18 +60,22 @@ function Slide.update(ctx, dt: number): string?
 	end
 	local direction = ctx.velocity / speed
 
-	-- Camera steering: turning the view turns the slide a little.
-	direction = ctx:cameraSteered(direction, slide.CameraSteer)
-
-	-- Key steering, at a limited rate.
-	if ctx.wishDir ~= Vector3.zero then
-		local angle = math.acos(math.clamp(direction:Dot(ctx.wishDir), -1, 1))
-		if angle > 1e-3 then
-			local turn = math.min(slide.SteerRate * dt / angle, 1)
-			local steered = direction:Lerp(ctx.wishDir, turn)
-			if steered.Magnitude > 1e-3 then
-				direction = steered.Unit
-			end
+	-- Steering: the slide turns toward where the player is looking, at a
+	-- fixed rate (SteerRate radians per second, whatever the angle: the lerp
+	-- fraction below divides by it). Keys do not steer a slide.
+	--
+	-- The rate is the point. The old camera steering turned the slide by a
+	-- share of however far the view moved that frame, so a fast flick
+	-- whipped it round and a player on a high mouse sensitivity steered
+	-- harder than one on a low setting. Here the mouse's speed does not
+	-- matter: holding the view off to one side keeps the slide curving
+	-- toward it until it lines up, and looking straight ahead stops it.
+	local angle = math.acos(math.clamp(direction:Dot(ctx.forward), -1, 1))
+	if angle > 1e-3 then
+		local turn = math.min(slide.SteerRate * dt / angle, 1)
+		local steered = direction:Lerp(ctx.forward, turn)
+		if steered.Magnitude > 1e-3 then
+			direction = steered.Unit
 		end
 	end
 
@@ -87,10 +91,16 @@ function Slide.update(ctx, dt: number): string?
 		speed -= slide.Friction * dt
 	end
 
-	speed = math.clamp(speed, 0, slide.MaxSpeed)
-	if onDownSlope then
-		speed = math.min(speed, if ctx.slideInFlow then slide.FlowSlopeMaxSpeed else slide.SlopeMaxSpeed)
-	else
+	-- One cap, chosen by where we are: a slide heading downhill is allowed
+	-- past the flat MaxSpeed, and further still if it started in FLOW.
+	-- (Clamping to MaxSpeed first and only then taking the slope cap would
+	-- leave the slope caps unreachable whenever they are the higher number.)
+	local cap = if not onDownSlope
+		then slide.MaxSpeed
+		elseif ctx.slideInFlow then slide.FlowSlopeMaxSpeed
+		else slide.SlopeMaxSpeed
+	speed = math.clamp(speed, 0, cap)
+	if not onDownSlope then
 		ctx.slideFlatDistance += speed * dt
 	end
 	ctx.velocity = direction * speed

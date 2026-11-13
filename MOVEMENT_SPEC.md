@@ -69,10 +69,13 @@ Responsive and intuitive. For stealth, tactical positioning, getting under obsta
 
 - A momentum-based transition out of sprinting; players build speed first. Momentum is preserved where appropriate.
 - It only starts when sprinting straight ahead; diagonals, sideways and backwards crouch instead (`Slide.MinForwardDot`; no diagonal slide, user ruling 2026-11-12).
-- On flat ground it ends after about **15 studs** (`Slide.Friction`; shortened by 2 studs on 2026-11-12), and never travels further than **25 studs** (`Slide.MaxFlatDistance`). Down a slope it keeps going until the slope levels out, and can be ended early by jumping or pressing crouch.
-- Down a slope its speed is capped at **28**, or **30** if the slide was started while in FLOW (`Slide.SlopeMaxSpeed`, `Slide.FlowSlopeMaxSpeed`; user rulings 2026-11-12).
+- On flat ground it ends after about **15 studs** (`Slide.Friction` 19.2; corrected 2026-11-13 — the friction had been 25, which gives 11.5 studs, not the 15 its comment claimed), and never travels further than **25 studs** (`Slide.MaxFlatDistance`). Down a slope it keeps going until the slope levels out, and can be ended early by jumping or pressing crouch.
+- Down a slope its speed is capped at **28**, or **30** if the slide was started while in FLOW (`Slide.SlopeMaxSpeed`, `Slide.FlowSlopeMaxSpeed`; user rulings 2026-11-12). Both were unreachable until 2026-11-13: the speed was clamped to the flat `MaxSpeed` of 26 first and the slope cap applied afterwards, so the lower of the two always won.
 - Steering turns the slide at about 74 degrees per second (`Slide.SteerRate`, raised by 5 degrees per second on 2026-11-12).
-- **Camera steering** (user request 2026-11-12): turning the view also turns the slide, by a share of the turn (`Slide.CameraSteer`, 0.5, agent's guess: look 90 degrees left and the slide bends 45). Speed is kept. The quick turn (`R`) does not count as steering.
+- **Steering** (user rulings 2026-11-12, reworked 2026-11-13): a slide turns toward **where the player is looking**, at a fixed **74 degrees per second** (`Slide.SteerRate`, 1.287 radians, carried over from the old key steering). Speed is kept. The quick turn (`R`) does not count as steering.
+  - **Keys do not steer a slide.** `A` and `D` do nothing during one; it is a mouse-only move, which fits the rule that a slide only goes straight ahead.
+  - **Nothing depends on how fast the mouse moves.** The earlier version turned the slide by a share of each frame's view movement, so a flick whipped it round and a high mouse sensitivity steered harder than a low one. Now holding the view off to one side keeps the slide curving toward it at the fixed rate until it lines up, and looking straight ahead stops it — the feel the user asked for, after Counter-Strike's directional steering.
+  - Steering in the air is unchanged and still works the old way (`AirCameraSteer`).
 - **Pressing sprint again during a slide cuts it straight back into a sprint** (user ruling 2026-11-11). It must be a new press: sprint is usually still held from the run-up, and holding it does not end the slide. In Toggle mode that press would flip the sprint switch off, so it is turned back on (fixed 2026-11-13: before, it did nothing when the switch was already on).
 - **Cooldown** (user ruling 2026-11-11): after a slide ends, another cannot start for 1 second (agent's guess at the value), so sprint and slide cannot be spammed. A crouch tap during the cooldown crouches instead, as it does when too slow to slide.
 - Chains into other moves: slide into an obstacle → vault; slide → jump (slide-hop). **There is no roll out of a slide** (user ruling 2026-11-11): the roll key does nothing while sliding.
@@ -96,7 +99,7 @@ Our own omnidirectional dive: hold crouch while sprinting to leap in the directi
 ### Roll [Established]
 
 - **Air roll:** press the roll key in the air and you roll on landing, but only after a fall of at least 6 studs. On a shorter fall the press does nothing.
-- **Ground roll:** press the roll key while walking or sprinting. Standing still does not roll, neither does sliding (user ruling 2026-11-11), and neither does moving backwards (user ruling 2026-11-13). The roll goes in the direction you are pushing.
+- **Ground roll:** press the roll key while walking or sprinting. Standing still does not roll, neither does sliding (user ruling 2026-11-11), and and neither does **strafing or moving backwards** (user rulings 2026-11-13): a ground roll goes forwards only, within about 25 degrees of where the player is looking (`Roll.MinForwardDot`, 0.9, the same window a slide uses). An air roll on landing is unaffected — it depends on the fall, not the direction.
 
 As built: the roll keeps your speed (within limits), lasts about half a second, keeps the body low, and turns the camera over once. Afterwards: sprint if sprint is held, otherwise walk.
 
@@ -128,11 +131,11 @@ Traverses obstacles. As built: low, thin obstacles with floor behind them are va
 
 ### Mantle [Established]
 
-Climb ledges, pipes and other structures, to escape, pursue and reach hidden areas. The user asked for mantling onto "a block that is at least 5 blocks high"; **agent's reading, to confirm:** blocks of 5 studs and more must work. As built: up to 6.5 studs, from the ground or from a jump. Climbing will be affected by weight (not built).
+Climb ledges, pipes and other structures, to escape, pursue and reach hidden areas. The user asked for mantling onto "a block that is at least 5 blocks high"; **agent's reading, to confirm:** blocks of 5 studs and more must work. As built: up to 6.5 studs (`Mantle.MaxHeight`), from the ground or from a jump. It has to stay below `LedgeGrab.MaxHeight`, or nothing is ever tall enough to hang from: raised to 10 on 2026-11-13 it swallowed the whole ledge-grab range, and was put back the same day (user ruling). Climbing will be affected by weight (not built).
 
 ### Ledge grab [Established]
 
-A ledge too tall to mantle and within reach is grabbed while airborne. While hanging: `Space` pulls up, crouch lets go, left/right shimmies along the ledge. **Hanging drains stamina** (user ruling 2026-11-11): 5 per second as built (agent's guess at the value), and nothing comes back meanwhile. **At zero stamina the player lets go** (user ruling 2026-11-11). As built, an exhausted player also cannot grab a ledge until they have recovered, or they would grab and drop at once; a pull-up pressed at the last moment still happens.
+A ledge too tall to mantle and within reach is grabbed while airborne. The tallest is `LedgeGrab.MaxHeight`, 10 studs, measured from the floor you jumped off, and a ledge of exactly 10 counts (fixed 2026-11-13: the check for "is this obstacle too tall to use?" overlapped a top sitting exactly on the limit, so a 10 stud block could never be grabbed; `Detection._probeTop` now holds that box clear of the limit). Reach also limits it: the hands grab up to `Clamber.Reach` above the body centre, so you must be on the way up or near the top of the jump. While hanging: `Space` pulls up, crouch lets go, left/right shimmies along the ledge. **Hanging drains stamina** (user ruling 2026-11-11): 5 per second as built (agent's guess at the value), and nothing comes back meanwhile. **At zero stamina the player lets go** (user ruling 2026-11-11). As built, an exhausted player also cannot grab a ledge until they have recovered, or they would grab and drop at once; a pull-up pressed at the last moment still happens.
 
 ### Wall-run [Established]
 
@@ -140,7 +143,7 @@ An alternative route where conventional ones do not exist. **A wall-run needs a 
 
 **It lasts until your feet reach the ground** (user ruling 2026-11-12): there is no time limit. It also ends when the wall ends or speed runs out (not when stamina runs out). The arc is flat enough to clear about 50 studs at sprint speed (`WallRun.Gravity` 3, about 2.2 s); a run started **in FLOW** is flatter still and lasts longer (`WallRun.FlowGravity` 2, about 3 s). Both values are the agent's guesses. The run rises only about half a stud above where it starts (`WallRun.UpKick` 2, was 6; lowered on request 2026-11-13).
 
-**Wall to wall** (user ruling 2026-11-12): a wall jump can carry you onto the opposite wall, which starts a fresh run. Straight after a wall jump the steep angle toward the new wall is allowed (`WallRun.WallToWallApproachDot`). **Wall-running drains stamina** (user ruling 2026-11-11; see Stamina), and an exhausted player cannot start one. You cannot run the same wall twice in a row before landing; bouncing between two walls is limited only by stamina. Automatic in both clambering modes.
+**Wall to wall** (user ruling 2026-11-12): a wall jump can carry you onto the opposite wall, which starts a fresh run. Straight after a wall jump the steep angle toward the new wall is allowed (`WallRun.WallToWallApproachDot`). The jump has to carry you across the gap before you land, which takes both air time and sideways speed: `WallJumpHeight` is 5 rather than 3.25 and `WallJumpOut` is 23 rather than 14 (user rulings 2026-11-13). Air time alone was not enough — the flight lasts about 0.45 s, and while it does, air steering pulls the sideways speed back toward whatever direction the player is pushing (`AirAccel`), so the old 14 covered barely half the roughly 6 studs needed before the far wall comes within `CheckDistance`. The player simply landed between the walls; the opposite wall was never within reach, so **no second run started at all** (it was not a case of re-entering a run too eagerly — running the same wall twice before landing is already blocked by `lastWallNormal`). **Wall-running drains stamina** (user ruling 2026-11-11; see Stamina), and an exhausted player cannot start one. You cannot run the same wall twice in a row before landing; bouncing between two walls is limited only by stamina. Automatic in both clambering modes.
 
 ### Jump
 
@@ -255,7 +258,7 @@ Weight is not built: stamina currently ignores it. For the prototype, weight and
 
 ## Implementation status
 
-Checked automatically by `python3 tools/studio.py test` (117 checks; `src/client/Dev/MovementTests.luau`). The last run, before the 2026-11-12 second hotfix set, passed all 112 checks it had then; the changed and new checks below have **not been run yet**. `python3 tools/studio.py quick` runs a short suite instead: 16 checks, one per main feature, each printed with its input and output. Every check other than the sprint-mode ones below runs in **hold** mode, because the script holds the key down and lets go to stop:
+Checked automatically by `python3 tools/studio.py test` (119 checks; `src/client/Dev/MovementTests.luau`). The last run (2026-11-13) passed 110 of 119. The nine failures are listed under "Known failures" below and are unrelated to the ledge-grab fix of the same day. `python3 tools/studio.py quick` runs a short suite instead: 16 checks, one per main feature, each printed with its input and output. Every check other than the sprint-mode ones below runs in **hold** mode, because the script holds the key down and lets go to stop:
 
 | Area | What the script checks |
 | :-- | :-- |
@@ -269,20 +272,22 @@ Checked automatically by `python3 tools/studio.py test` (117 checks; `src/client
 | Prone | Hold crouch lowers the body; crawl speed; tap stands up; cannot stand under the tunnel roof |
 | Dive | Leaves the ground and lands prone |
 | Jump | Height matches the config; buffered jump (checked with the cooldown off); coyote jump (on a slow frame rate the script widens the window, so the tuned window itself is unverified); jump cooldown |
-| Roll | Air roll after an 8 stud fall; ground roll while walking; no roll while standing still |
+| Roll | Air roll after an 8 stud fall; ground roll while walking; no roll while standing still; no roll while strafing |
 | Vault | Automatic vault over the 2 stud box while sprinting, and over the 3 stud box (the tallest that still vaults) |
 | Mantle | Automatic mantle onto the 4 stud box |
-| Ledge grab | Grab on the 8 stud wall from a jump; Space pulls up onto the top; hanging drains stamina at the set rate; running out lets go; an exhausted player cannot grab |
+| Ledge grab | Grab on the 8 stud wall and on the 10 stud block (the tallest that can be grabbed) from a jump; Space pulls up onto the top; hanging drains stamina at the set rate; running out lets go; an exhausted player cannot grab |
 | Wall-run | Starts from a jump beside the wall; Space wall-jumps away from it; drains stamina at the set rate less the momentum discount; a run under way finishes even with no stamina; an exhausted player cannot start one |
 | Stamina rules (numbers only, no character) | Starts full; never below zero or above the maximum; exhaustion at zero and until the recovery threshold; recovery only after the delay, at the set rate, the same at any frame rate; spending restarts the delay |
 | Momentum rules (numbers only) | No discount at rest; grows with speed to the maximum and no further; only speed straight ahead counts; falling, blocked and shoved speed do not; the discount comes off the cost |
 | FLOW chain rules (numbers only) | Slide, wall-run, roll pays on the third action; instant actions count; continues inside the window and restarts after it; the window does not run during a long action; a repeated action counts once; dropped, switched-off and unknown actions do not count; a two-move loop stops paying at the limit; a new chain can earn again |
-| Stamina on the course | Sprint drains at the set rate and nothing comes back meanwhile; recovery only after the delay; slide and dive at full sprint cost half, once; a roll at walk speed gets a smaller discount and a sideways roll none; a roll or slide that does not start costs nothing |
+| Stamina on the course | Sprint drains at the set rate and nothing comes back meanwhile; recovery only after the delay; slide and dive at full sprint cost half, once; a roll at walk speed gets a smaller discount; a sideways roll does not start and costs nothing; a roll or slide that does not start costs nothing |
 | Exhaustion on the course | Resting recovers; walking is slowed to 70%; no sprint and no roll while exhausted; running dry ends a sprint and no slide or dive can start; sprint returns once exhaustion is over; normal speed returns at the threshold, not before |
 | Manual clamber refund | An automatic vault gives nothing; in Manual mode nothing happens without the key; a manual clamber gives the refund once |
 | FLOW chain on the course | Slide, jump out of it, wall-run, wall jump is a chain of four, paid once, with the slide's momentum discount applied separately; the chain ends when its window runs out; slide, jump, mantle completes a chain; in FLOW the sprint is 5 faster and the view wider, and both end with the chain |
 
 Checked once by hand with simulated keys (2026-11-10), not in the script: quick turn; slide-hop; manual clamber mode; ledge shimmy and drop; mantles of 5 and 6 studs; the settings panel and reduced camera motion; that a flat-ground jump does not roll.
+
+**Last runs.** The full 119-check suite was run by the user on 2026-11-13: 118 passed, with only "a wall jump onto the opposite wall starts a new wall-run" failing; raising `WallJumpOut` to 23 fixed it, confirmed by the user in play. The slide-steering rework and the no-roll-while-strafing rule of the same day have **not been run**: the suite's sideways-roll check was rewritten to expect no roll, and slide steering has no scripted check at all (it is a by-eye call). The short suite (`quick`, 16 checks) last passed 16/16, before those two changes.
 
 **Not tested:** slide steering, and camera steering in a slide or in the air (no scripted check; the user checks by playing); slide on landing; getting up from prone with Space; diving sideways or backwards; strafing around cover or against a wall; the Command key on a Mac; anything with two players. For stamina and FLOW: a real slide, wall-run, roll sequence and a wall-run, wall jump, slide sequence on the course (their rules are checked on the numbers only); a chain that reaches the 10 stamina limit on the course; the manual mantle refund (only a manual vault ran); stamina across a respawn; the debug readout's new lines (not looked at). The course checks for stamina switch sprint drain or recovery off where they would blur the number being measured.
 
