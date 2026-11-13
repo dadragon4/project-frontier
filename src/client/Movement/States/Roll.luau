@@ -1,12 +1,7 @@
--- Roll. Two ways in (see MovementConfig.Roll):
---   air roll:    on landing from a big enough fall, if the roll key was
---                pressed while airborne (decided in Air);
---   ground roll: the roll key pressed while moving on the ground (decided
---                in MovementController).
---
--- The character stays low, rolls forward (at least Roll.MinSpeed), and the
--- camera turns over once. When the roll finishes, the next state depends on
--- what is held.
+-- Roll: from the air (roll pressed before a long enough fall, decided in
+-- Air) or the ground (roll pressed while moving forward, decided in
+-- MovementController). Stays low, moves forward, turns the camera over
+-- once. Afterwards: sprint if sprint is held, otherwise walk.
 
 local Roll = {
 	staminaCost = "Roll", -- paid once, when the roll starts
@@ -24,8 +19,7 @@ function Roll.enter(ctx, previous: string)
 	ctx.input.consume("Roll")
 
 	-- Air roll: keep going the way we were travelling.
-	-- Ground roll: go where the player is pushing, else the way we were
-	-- moving, else straight ahead.
+	-- Ground roll: where the player pushes, else the way we moved, else ahead.
 	local speed = ctx:getSpeed()
 	local direction
 	if previous ~= "Air" and ctx.wishDir ~= Vector3.zero then

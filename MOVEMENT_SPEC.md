@@ -73,7 +73,7 @@ Responsive and intuitive. For stealth, tactical positioning, getting under obsta
 - Down a slope its speed is capped at **28**, or **30** if the slide was started while in FLOW (`Slide.SlopeMaxSpeed`, `Slide.FlowSlopeMaxSpeed`; user rulings 2026-11-12).
 - Steering turns the slide at about 74 degrees per second (`Slide.SteerRate`, raised by 5 degrees per second on 2026-11-12).
 - **Camera steering** (user request 2026-11-12): turning the view also turns the slide, by a share of the turn (`Slide.CameraSteer`, 0.5, agent's guess: look 90 degrees left and the slide bends 45). Speed is kept. The quick turn (`R`) does not count as steering.
-- **Pressing sprint again during a slide cuts it straight back into a sprint** (user ruling 2026-11-11). It must be a new press: sprint is usually still held from the run-up, and holding it does not end the slide.
+- **Pressing sprint again during a slide cuts it straight back into a sprint** (user ruling 2026-11-11). It must be a new press: sprint is usually still held from the run-up, and holding it does not end the slide. In Toggle mode that press would flip the sprint switch off, so it is turned back on (fixed 2026-11-13: before, it did nothing when the switch was already on).
 - **Cooldown** (user ruling 2026-11-11): after a slide ends, another cannot start for 1 second (agent's guess at the value), so sprint and slide cannot be spammed. A crouch tap during the cooldown crouches instead, as it does when too slow to slide.
 - Chains into other moves: slide into an obstacle → vault; slide → jump (slide-hop). **There is no roll out of a slide** (user ruling 2026-11-11): the roll key does nothing while sliding.
 - Slide distance will depend on weight (longer when light; not built).
@@ -96,7 +96,7 @@ Our own omnidirectional dive: hold crouch while sprinting to leap in the directi
 ### Roll [Established]
 
 - **Air roll:** press the roll key in the air and you roll on landing, but only after a fall of at least 6 studs. On a shorter fall the press does nothing.
-- **Ground roll:** press the roll key while walking or sprinting. Standing still does not roll, and neither does sliding (user ruling 2026-11-11). The roll goes in the direction you are pushing.
+- **Ground roll:** press the roll key while walking or sprinting. Standing still does not roll, neither does sliding (user ruling 2026-11-11), and neither does moving backwards (user ruling 2026-11-13). The roll goes in the direction you are pushing.
 
 As built: the roll keeps your speed (within limits), lasts about half a second, keeps the body low, and turns the camera over once. Afterwards: sprint if sprint is held, otherwise walk.
 
@@ -138,7 +138,7 @@ A ledge too tall to mantle and within reach is grabbed while airborne. While han
 
 An alternative route where conventional ones do not exist. **A wall-run needs a sprint first** (user ruling 2026-11-12): it only starts if you left the ground from a sprint, a slide or another wall-run. As built: jump alongside a wall while moving along it fast enough and you run along it in a shallow arc. `Space` wall-jumps off; crouch drops off.
 
-**It lasts until your feet reach the ground** (user ruling 2026-11-12): there is no time limit. It also ends when the wall ends or speed runs out (not when stamina runs out). The arc is flat enough to clear about 50 studs at sprint speed (`WallRun.Gravity` 6, about 2.3 s); a run started **in FLOW** is flatter still and lasts longer (`WallRun.FlowGravity` 4, about 3.4 s). Both values are the agent's guesses.
+**It lasts until your feet reach the ground** (user ruling 2026-11-12): there is no time limit. It also ends when the wall ends or speed runs out (not when stamina runs out). The arc is flat enough to clear about 50 studs at sprint speed (`WallRun.Gravity` 3, about 2.2 s); a run started **in FLOW** is flatter still and lasts longer (`WallRun.FlowGravity` 2, about 3 s). Both values are the agent's guesses. The run rises only about half a stud above where it starts (`WallRun.UpKick` 2, was 6; lowered on request 2026-11-13).
 
 **Wall to wall** (user ruling 2026-11-12): a wall jump can carry you onto the opposite wall, which starts a fresh run. Straight after a wall jump the steep angle toward the new wall is allowed (`WallRun.WallToWallApproachDot`). **Wall-running drains stamina** (user ruling 2026-11-11; see Stamina), and an exhausted player cannot start one. You cannot run the same wall twice in a row before landing; bouncing between two walls is limited only by stamina. Automatic in both clambering modes.
 
@@ -183,7 +183,7 @@ Every number below is an **initial tuning value** (user, 2026-11-11), not final 
 | :-- | :-- |
 | Maximum | 100 |
 | Sprint | 8 per second, for as long as the Sprint state lasts |
-| Wall-run | 10 per second while running the wall, less the momentum discount measured when the run starts (up to half off; user ruling 2026-11-12). A normal run of about 2.3 s costs 23 at most |
+| Wall-run | 10 per second while running the wall, less the momentum discount measured when the run starts (up to half off; user ruling 2026-11-12). A normal run of about 2.2 s costs about 22 at most |
 | Ledge hang | 5 per second while hanging (agent's guess at the value) |
 | Slide / roll / dive | 15 / 15 / 20, once, when the action starts (air rolls included) |
 | Recovery | 15 per second, starting 1 second after stamina was last spent |

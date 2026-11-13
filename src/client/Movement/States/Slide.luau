@@ -1,23 +1,15 @@
--- Sliding: direction is mostly locked, speed bleeds off through friction,
--- and slopes add or remove speed. Jumping out of a slide keeps the speed
--- (the Air state takes over as soon as the character leaves the ground).
+-- Sliding: started by tapping crouch while sprinting straight ahead.
+-- Direction is mostly locked; friction slows it on flat ground; slopes
+-- add or remove speed. Down a slope it has no friction and lasts until the
+-- slope levels out.
 --
--- Started by tapping crouch while sprinting straight ahead; the key does
--- not need to be held. On flat ground it ends when the speed runs out or
--- after Slide.MaxFlatDistance studs. Down a slope there is no friction and it
--- carries on until the slope levels out, at no more than Slide.SlopeMaxSpeed.
---
--- How it ends (user ruling 2026-11-12): back into a SPRINT, unless
---   - crouch is pressed during it: it ends in a crouch;
---   - the player is out of stamina: it ends in a walk.
--- (Under a low roof it ends crouched, wherever it was going. In Hold sprint
--- mode with the key let go, the sprint becomes a walk on the next frame.)
--- Jumping ends it too, into the air.
--- Pressing sprint again cuts it short, straight back into a sprint.
--- The roll key does nothing during a slide (user ruling 2026-11-11).
---
--- After a slide ends, another cannot start for Slide.Cooldown seconds
--- (MovementController:canSlide), so sprint and slide cannot be spammed.
+-- How it ends:
+--   by itself (out of speed or distance)  -> Sprint, or Walk if out of stamina
+--   crouch pressed                        -> Crouch
+--   sprint pressed                        -> Sprint
+--   jump                                  -> Air
+-- Under a low roof it always ends crouched. The roll key does nothing here.
+-- Slide.Cooldown keeps sprint and slide from being spammed.
 
 local Slide = {
 	staminaCost = "Slide", -- paid once, when the slide starts
@@ -25,8 +17,7 @@ local Slide = {
 	allowsClamber = true, -- vault / mantle can start from here
 }
 
--- Where a slide goes when it ends by itself: back into a sprint, or a walk
--- if stamina has run out.
+-- Where a slide goes when it ends by itself.
 local function finished(ctx): string
 	return if ctx:canUseStamina() then "Sprint" else "Walk"
 end
@@ -69,11 +60,10 @@ function Slide.update(ctx, dt: number): string?
 	end
 	local direction = ctx.velocity / speed
 
-	-- Camera steering: turning the view turns the slide by a share of the
-	-- turn (Slide.CameraSteer), with or without a key held.
+	-- Camera steering: turning the view turns the slide a little.
 	direction = ctx:cameraSteered(direction, slide.CameraSteer)
 
-	-- Limited steering toward where the player is pushing.
+	-- Key steering, at a limited rate.
 	if ctx.wishDir ~= Vector3.zero then
 		local angle = math.acos(math.clamp(direction:Dot(ctx.wishDir), -1, 1))
 		if angle > 1e-3 then
@@ -85,10 +75,8 @@ function Slide.update(ctx, dt: number): string?
 		end
 	end
 
-	-- Slopes: the floor normal leans toward downhill. Sliding downhill adds
-	-- speed, sliding uphill removes it, in proportion to steepness.
-	-- `slope` is 0 on flat ground, positive heading downhill, negative uphill
-	-- (it is the sine of the slope's angle along our direction).
+	-- Slopes: downhill adds speed, uphill removes it. `slope` is the sine of
+	-- the slope along our direction: 0 flat, positive downhill.
 	local normal = ctx:getFloorNormal()
 	local slope = direction:Dot(Vector3.new(normal.X, 0, normal.Z))
 	local onDownSlope = slope >= math.sin(math.rad(slide.SlopeMinAngle))
@@ -112,22 +100,21 @@ function Slide.update(ctx, dt: number): string?
 		return finished(ctx)
 	end
 
-	-- Out of speed. (Not on a downward slope, where it keeps going until the
-	-- slope levels out.)
+	-- Out of speed (never on a downward slope).
 	if speed < slide.EndSpeed and not onDownSlope then
 		return finished(ctx)
 	end
 
-	-- Pressing sprint again cuts the slide short, straight into a sprint.
-	-- It has to be a new press: the key is usually still held down from
-	-- the sprint that led into the slide. (Under a low roof, setState
-	-- turns this into a crouch.)
+	-- Sprint pressed (a new press) goes back to a sprint. In Toggle mode the
+	-- press just flipped the switch off, so turn it back on.
 	if
 		ctx.stateTime >= slide.MinTime
 		and ctx.input.pressedSince("Sprint", ctx.slideStartedAt)
-		and ctx:wantsSprint()
+		and ctx.wishDir ~= Vector3.zero
+		and ctx:canUseStamina()
 	then
 		ctx.input.consume("Sprint")
+		ctx.sprintOn = true
 		return "Sprint"
 	end
 

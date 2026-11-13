@@ -1,28 +1,19 @@
--- Airborne (jumping or falling). Speed is carried; the player can steer a
--- little.
+-- In the air (jumping or falling). Speed is carried; you can steer a little.
 --
--- Entering from a jump out of a slide gives a small slide-hop boost.
--- While airborne:
---   - vault / mantle / ledge grab are checked by MovementController;
---   - a wall beside you, while moving along it, starts a WallRun, but
---     only if you were sprinting when you left the ground.
--- On landing:
---   - roll pressed during this time in the air, and the fall was at least
---     Roll.MinFallHeight                              -> Roll
---   - crouch tapped just before landing, moving fast  -> Slide
---   - otherwise Sprint or Walk.
+-- A jump out of a slide gets a small slide-hop boost. In the air,
+-- MovementController checks for vault / mantle / ledge grab, and a wall
+-- beside you starts a wall-run if you left the ground sprinting.
+-- On landing: Roll (roll pressed and a long enough fall), Slide (crouch
+-- tapped, fast enough), otherwise Sprint or Walk.
 
 local Air = {
 	allowsClamber = true,
 }
 
 function Air.enter(ctx, previous: string)
-	-- A wall-run needs a sprint first (user ruling 2026-11-12): it can only
-	-- start if this time in the air began from a sprint, from a slide (which
-	-- itself comes out of a sprint) or from another wall-run.
+	-- A wall-run needs a sprint first (or a slide or wall-run, which come from one).
 	ctx.airFromSprint = previous == "Sprint" or previous == "Slide" or previous == "WallRun"
-	-- Flying off a wall after a wall jump: the opposite wall can be caught
-	-- at a steeper angle (see Detection.findWallRunWall).
+	-- After a wall jump, the opposite wall can be caught at a steep angle.
 	ctx.afterWallJump = previous == "WallRun" and ctx.wallJumped == true
 	local hop = ctx.config.SlideHop
 	if previous == "Slide" and ctx._jumped then
@@ -47,9 +38,8 @@ function Air.update(ctx, dt: number): string?
 			if ctx.lastFallHeight >= config.Roll.MinFallHeight and ctx:canUseStamina() then
 				return "Roll"
 			end
-			-- Too short a fall for an air roll (or no stamina for one): the
-			-- press is dropped, so it does not turn into a ground roll the
-			-- moment we land.
+			-- No air roll (fall too short or no stamina): drop the press so it does
+			-- not turn into a ground roll on landing.
 			ctx.input.consume("Roll")
 		end
 

@@ -1,5 +1,4 @@
--- Running. Speed builds up over time rather than switching on instantly.
--- Works in any direction; sideways and backwards are slower.
+-- Running. Speed builds up; works in any direction, slower sideways and back.
 
 local Sprint = {
 	staminaDrain = "SprintDrain", -- costs stamina for as long as it lasts
@@ -10,10 +9,8 @@ local Sprint = {
 function Sprint.enter(ctx, previous: string?)
 	ctx.crouched = false
 
-	-- Pressing sprint while already strafing: go straight to sprint-strafe
-	-- speed, with no build-up, so quick strafes answer at once. Only from a
-	-- walk, only when already moving the way the player is pushing, and only
-	-- when that push is sideways (see StrafeSprintSnapDot).
+	-- Sprint pressed while already strafing (from a walk, moving sideways):
+	-- jump straight to sprint-strafe speed, so quick strafes answer at once.
 	local config = ctx.config
 	local wish = ctx.wishDir
 	if
@@ -23,8 +20,7 @@ function Sprint.enter(ctx, previous: string?)
 		and ctx.velocity:Dot(wish) > 1
 	then
 		ctx.velocity = wish * ctx:sprintSpeed() * ctx:directionSpeedScale() * ctx.stamina:speedScale()
-		-- The body needs a few frames to catch up with this jump in speed;
-		-- do not mistake that for running into a wall.
+		-- The body takes a few frames to catch up; that is not a wall.
 		ctx.blockedGraceUntil = os.clock() + 0.2
 	end
 end
@@ -36,9 +32,7 @@ function Sprint.update(ctx, dt: number): string?
 		return "Air"
 	end
 
-	-- Crouch key: tap to slide, hold to dive. Too slow for either (or too
-	-- soon after the last slide), and it behaves as it does when walking
-	-- (crouch / prone).
+	-- Crouch key: tap = slide, hold = dive (or crouch / prone if too slow).
 	local key = ctx:crouchKey()
 	if key == "tap" then
 		return if ctx:canSlide() then "Slide" else "Crouch"
@@ -50,14 +44,12 @@ function Sprint.update(ctx, dt: number): string?
 		return "Walk"
 	end
 
-	-- Below walk speed pick up speed at the normal rate; above it, build
-	-- toward sprint speed slowly. What counts is the speed in the direction
-	-- being pushed, not the total: after cutting sideways out of a sprint
-	-- you are still moving fast, but not yet in the new direction, and that
-	-- new direction should pick up at the normal rate.
+	-- Normal acceleration up to walk speed, then slower up to sprint speed.
+	-- Measured in the pushed direction, so cutting sideways out of a sprint
+	-- picks up the new direction at the normal rate.
 	local along = ctx.velocity:Dot(ctx.wishDir)
 	local accel = if along < config.WalkSpeed then config.GroundAccel else config.SprintAccel
-	-- Extra speed from a slide-hop or vault bleeds away gently (OverSpeedDecel).
+	-- Extra speed from a slide-hop or vault fades gently.
 	ctx:accelerate(ctx:sprintSpeed(), accel, config.GroundDecel, dt, config.OverSpeedDecel)
 	return nil
 end

@@ -32,6 +32,7 @@ No conflicts (`Cn`) are open. What each source document said before a ruling is 
 | — | 2026-11-12 (hotfixes, second set): a slide ends in a **sprint**, unless crouch is pressed (crouch) or stamina has run out (walk); this replaces "a slide on flat ground ends crouched" (2026-11-11). **No diagonal slide**: straight ahead only (replaces the first set's "forward diagonals still slide"). A wall-run lasts until the feet reach the ground (no time limit, flatter arc: gravity 6, 4 in FLOW, agent's guesses), so a run started in FLOW lasts longer. A wall jump onto the opposite wall starts a fresh wall-run. Walking has its own side sway, `WalkSideBobAmount`. | `MOVEMENT_SPEC.md` |
 | — | 2026-11-12: camera steering. Turning the view turns a slide (share 0.5) and flight in the air (share 0.3) by part of the turn, keys or not, speed kept. Shares are agent's guesses. | `MOVEMENT_SPEC.md` |
 | — | 2026-11-13: jump height 7 (was 5); a heavier fall than rise (gravity x1.6 on the way down, agent's guess); jump fatigue: 7, 5, 3, then 2 s without jumping, then full height again; 2 s of rest also restores full height. | `MOVEMENT_SPEC.md` |
+| — | 2026-11-13: no ground roll while moving backwards. Sprint pressed during a slide returns to a sprint in Toggle mode too (bug fix). The wall-run rises only about half a stud (UpKick 6 to 2; Gravity 3, FlowGravity 2 so it keeps its length; agent's values). | `MOVEMENT_SPEC.md` |
 
 ## Open questions for Milestone 1
 

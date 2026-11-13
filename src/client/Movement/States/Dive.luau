@@ -1,8 +1,5 @@
--- Dive: a leap in the direction you are already moving that lands prone.
--- Entered by holding crouch while moving fast (see Sprint and Walk).
---
--- The direction is fixed when the dive starts; there is no steering in the
--- air. The body lowers toward prone during the flight.
+-- Dive: a leap in the direction you are moving, landing prone. Hold
+-- crouch while moving fast. No steering in the air.
 
 local Workspace = game:GetService("Workspace")
 
@@ -24,12 +21,10 @@ function Dive.enter(ctx)
 
 	-- The upward speed that reaches exactly `Height` under gravity.
 	local up = math.sqrt(2 * Workspace.Gravity * dive.Height)
-	-- Freefall tells the Humanoid it is in the air, so it does not hold the
-	-- feet to the floor.
+	-- Freefall: tells the Humanoid it is airborne, so it lets go of the floor.
 	ctx:releaseBody(Enum.HumanoidStateType.Freefall, direction * speed + Vector3.new(0, up, 0))
 
-	-- The floor is still reported for a frame or two after take-off. Only
-	-- look for the landing once we have actually left the ground.
+	-- The floor is reported for a frame or two after take-off; wait until we leave it.
 	ctx.diveLeftGround = false
 end
 

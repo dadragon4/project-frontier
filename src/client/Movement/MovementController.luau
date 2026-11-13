@@ -1,40 +1,29 @@
--- Owns the character's intended horizontal velocity and runs the current
--- movement state.
+-- Runs the current movement state and owns the character's intended
+-- horizontal velocity.
 --
--- How it drives the character: Roblox's Humanoid still does the physical
--- walking (ground contact, stairs, replication to other players). Every
--- frame we decide a velocity using our own acceleration rules, then tell
--- the Humanoid "walk in this direction at this speed". Some states (mantle,
--- vault, ledge hang, wall-run) instead put the Humanoid in its "Physics"
--- state and move the body directly.
+-- Roblox's Humanoid still does the physical walking (floor contact, stairs,
+-- replication). Each frame we work out a velocity with our own rules and
+-- tell the Humanoid to walk that way at that speed. Some states (mantle,
+-- vault, ledge hang, wall-run) switch the Humanoid to its "Physics" state
+-- and move the body themselves.
 --
--- A "state" is one mode of movement. The character is always in exactly
--- one. Each state module has:
+-- The character is always in exactly one state. A state module has:
 --     enter(ctx, previousStateName)   optional
 --     update(ctx, dt) -> string?      return another state's name to switch
 --     exit(ctx)                       optional
---     controlsBody = true             optional: the state moves the body
---                                     itself, so the controller must not
---                                     send walk instructions
---     blocksJump = true               optional: no buffered/coyote jumps
---     allowsGroundRoll = true         optional: the roll key rolls from here
---     allowsClamber = true            optional: vault / mantle / ledge grab
---                                     can start from this state
---     staminaCost = "Slide"           optional: entering the state costs
---                                     stamina (a key of Config.Stamina.Costs)
---     staminaDrain = "SprintDrain"    optional: being in the state drains
---                                     stamina, at that rate per second (a
---                                     key of Config.Stamina)
---     flowAction = "Slide"            optional: the state counts toward a
---                                     FLOW chain under this name
---     clearsSprintToggle = true       optional: entering the state switches
---                                     a toggled sprint off (see wantsSprint)
--- where ctx is this controller.
+-- and optional flags:
+--     controlsBody        moves the body itself (no walk instructions)
+--     blocksJump          no jumping from here
+--     allowsGroundRoll    the roll key rolls from here
+--     allowsClamber       vault / mantle / ledge grab can start here
+--     staminaCost         costs stamina once, on entering (key of Stamina.Costs)
+--     staminaDrain        costs stamina per second (key of Config.Stamina)
+--     flowAction          counts toward a FLOW chain under this name
+--     clearsSprintToggle  entering it switches a toggled sprint off
+-- ctx is this controller.
 --
--- Stamina and FLOW: the rules live in Shared/Stamina and Shared/FlowChain.
--- States only carry the three labels above; all charging happens here, in
--- setState, the one place every change of state goes through. So an action
--- is charged exactly once, and a change that never happens costs nothing.
+-- All stamina and FLOW bookkeeping happens in setState, the one place
+-- every state change goes through, so each action is counted exactly once.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -69,8 +58,7 @@ local PRE_STEP_NAME = "FrontierMovementPre"
 local MovementController = {}
 MovementController.__index = MovementController
 
--- Obstacle and wall detection (findObstacle, findWallRunWall, roomToStand,
--- isBlocked, ledgeAt) lives in Detection.luau and is used as methods here.
+-- Raycast checks (obstacles, walls, room to stand) live in Detection.luau.
 for name, fn in Detection do
 	MovementController[name] = fn
 end
@@ -126,8 +114,7 @@ function MovementController.new(character: Model, input)
 	self.airPeakY = 0 -- highest the feet have been during the current time in the air
 	self.lastFallHeight = 0 -- how far the feet dropped (peak to landing) on the most recent landing
 
-	-- Simulated on this client for now, like the movement itself. The
-	-- server will run the same two modules to check it (M1.4).
+	-- Run on this client for now; the server will check it later (M1.4).
 	self.stamina = Stamina.new(Config.Stamina)
 	self.flow = FlowChain.new(Config.Flow)
 	self.drainScale = 1 -- share of the current state's stamina drain that is charged (momentum lowers it)
@@ -150,23 +137,20 @@ function MovementController.new(character: Model, input)
 	self._jumpFatigueUntil = -math.huge -- no jumping before this (after the lowest jump)
 	self._lastJumpHeight = Config.JumpHeight -- how high the jump in progress was set to go
 
-	-- Fires for every jump, whether Roblox's control script or our buffered
-	-- jump started it.
+	-- Fires for every jump, whoever started it.
 	self._stateChanged = self.humanoid.StateChanged:Connect(function(_, new)
 		if new == Enum.HumanoidStateType.Jumping then
 			self._jumped = true
 			self._jumpedAt = os.clock()
 			self.input.consume("Jump")
-			-- Jump fatigue: remember this jump's height, and count it so the
-			-- next one is lower (see _handleJump).
+			-- Jump fatigue: note this jump's height; the next one is lower.
 			self._lastJumpHeight = self.humanoid.JumpHeight
 			self.jumpCount += 1
 		end
 	end)
 
-	-- Toggle sprint mode: flip the switch on the press itself, rather than
-	-- polling the key. A press that another state consumes (a slide cut
-	-- short by pressing sprint again) is still seen here.
+	-- Toggle sprint mode: flip the switch on the press itself, so a press
+	-- that a state uses up (a slide cut short) still counts.
 	self._sprintPressed = input.Pressed:Connect(function(action: string)
 		if action == "Sprint" and self.settings.get("SprintMode") == "Toggle" then
 			self.sprintOn = not self.sprintOn
@@ -184,9 +168,8 @@ function MovementController.new(character: Model, input)
 
 	self.lastGroundY = self:getFeetY() -- height of the floor we last stood on
 
-	-- While a state moves the body directly (controlsBody), gravity would
-	-- still pull it down between our frames, so a wall-run sinks and a hang
-	-- sags, worse at low frame rates. This upward force, equal to the
+	-- While a state moves the body itself, gravity would still drag it down
+	-- between frames (a wall-run sinks, a hang sags). This force, equal to the
 	-- character's weight, cancels gravity during those states only.
 	local attachment = Instance.new("Attachment")
 	attachment.Name = "FrontierGravityCancel"
@@ -205,19 +188,13 @@ function MovementController.new(character: Model, input)
 
 	self:setState("Walk")
 
-	-- Three things happen in order every frame:
-	--   1. (just before Roblox's control script) we clear the Humanoid's move
-	--      direction;
-	--   2. Roblox's control script, at Input priority, reads the keyboard /
-	--      thumbstick / touch stick and tells the Humanoid which way the
-	--      player wants to go;
-	--   3. (just after) we read that wish from Humanoid.MoveDirection, apply
-	--      our own acceleration rules, and give the Humanoid our instruction,
-	--      which is the one it ends up following.
-	-- Step 1 matters because our own instruction from the previous frame is
-	-- still stored in MoveDirection. Without clearing it, a frame where the
-	-- control script stays silent would read our old instruction back as if
-	-- the player had asked for it.
+	-- Each frame, in order:
+	--   1. just before Roblox's control script: clear the Humanoid's move direction;
+	--   2. Roblox's control script reads the keys / stick into it;
+	--   3. just after: we read that wish, apply our rules, and give the Humanoid
+	--      the final instruction.
+	-- Step 1 stops last frame's instruction being read back as if the player
+	-- had pressed it.
 	RunService:BindToRenderStep(PRE_STEP_NAME, Enum.RenderPriority.Input.Value - 1, function()
 		if self.humanoid.Parent then
 			self.humanoid:Move(Vector3.zero, false)
@@ -269,17 +246,14 @@ function MovementController:setState(name: string)
 		self.sprintOn = false
 	end
 
-	-- Charge the new state's stamina cost first: the old state's exit and
-	-- the new state's enter both change the velocity (a slide adds its
-	-- boost, a vault zeroes it), and the momentum discount must be measured
-	-- on the speed the player arrived with.
+	-- Charge the stamina cost first, before exit/enter change the speed: the
+	-- momentum discount uses the speed the player arrived with.
 	if newState.staminaCost then
 		self.lastMomentumDiscount = self:momentumDiscount()
 		local cost = Config.Stamina.Costs[newState.staminaCost]
 		self.stamina:spend(Stamina.discountedCost(cost, self.lastMomentumDiscount))
 	end
-	-- A state whose drain is cheaper with momentum (wall-run): fix the
-	-- discount now, for the whole time the state lasts.
+	-- Wall-run: momentum makes its drain cheaper for the whole run.
 	self.drainScale = 1
 	if newState.drainUsesMomentum then
 		self.lastMomentumDiscount = self:momentumDiscount()
@@ -312,25 +286,22 @@ function MovementController:setState(name: string)
 		self.state.enter(self, previous)
 	end
 
-	-- Instant FLOW actions reported during this change (a wall jump, a
-	-- jump out of a slide) are counted last, so the chain sees them after
-	-- the action they ended: "wall-run, then wall jump", not the reverse.
+	-- Instant FLOW moves reported during this change (wall jump, slide hop)
+	-- count after the move they ended: "wall-run, then wall jump".
 	for _, action in self._flowQueue do
 		self:_payFlow(self.flow:instant(action, now))
 	end
 	table.clear(self._flowQueue)
 end
 
--- The share of an action's stamina cost that the player's momentum would
--- take off if the action started right now. See Stamina.qualifyingSpeed
--- for what counts as momentum.
+-- How much of an action's stamina cost momentum would take off right now
+-- (see Stamina.qualifyingSpeed).
 function MovementController:momentumDiscount(): number
 	local speed = Stamina.qualifyingSpeed(self.velocity, self.root.AssemblyLinearVelocity, self.forward)
 	return Stamina.momentumDiscount(speed, Config.SprintSpeed, Config.Stamina.MomentumMaxDiscount)
 end
 
--- For states to report a FLOW action that is not a state of its own.
--- Call it just before, or while, changing state.
+-- For moves that are not states of their own. Call just before or while changing state.
 function MovementController:flowInstant(action: string)
 	table.insert(self._flowQueue, action)
 end
@@ -342,14 +313,9 @@ function MovementController:_payFlow(reward: number)
 	end
 end
 
--- Is the player asking to sprint? Sprint works in any direction; sideways
--- and backwards are just slower (see directionSpeedScale).
--- Not while exhausted: see canUseStamina.
---
--- Two ways of asking, the player's choice (Settings.SprintMode):
---   "Toggle" (the default): the key switches sprinting on and off, so it
---            does not have to be held. `sprintOn` is that switch.
---   "Hold":   sprinting lasts only while the key is held.
+-- Is the player asking to sprint? Any direction counts; not while exhausted.
+-- Settings.SprintMode: "Toggle" (default) uses the `sprintOn` switch;
+-- "Hold" sprints only while the key is held.
 function MovementController:wantsSprint(): boolean
 	local asking = if self.settings.get("SprintMode") == "Toggle"
 		then self.sprintOn
@@ -357,15 +323,11 @@ function MovementController:wantsSprint(): boolean
 	return asking and self.wishDir ~= Vector3.zero and self:canUseStamina()
 end
 
--- The sprint switch clears itself in the cases where leaving it on would
--- surprise the player (user decisions 2026-11-12): when they stop pushing a
--- direction, and when they run out of stamina. Entering a crouched state
--- clears it too, in setState, or a tap of crouch would stand straight back
--- up into a sprint. Called every frame, after the input is read.
+-- The sprint switch turns itself off when the player stops pushing a
+-- direction or runs out of stamina. (Crouched states turn it off in setState.)
 function MovementController:_updateSprintToggle()
 	if self.settings.get("SprintMode") ~= "Toggle" then
-		-- Not in Toggle mode: keep the switch off, so that changing the
-		-- setting mid-game never resumes a sprint on its own.
+		-- Hold mode: keep it off, so switching modes never starts a sprint by itself.
 		self.sprintOn = false
 		return
 	end
@@ -379,13 +341,8 @@ function MovementController:sprintSpeed(): number
 	return Config.SprintSpeed + (if self.flow:inFlow() then Config.Flow.SprintSpeedAdd else 0)
 end
 
--- May the player start something that needs stamina? Not while exhausted
--- (user ruling 2026-11-11): from running out until stamina is back up to
--- Stamina.RecoverAt, there is no sprint, slide, dive, roll, wall-run or
--- ledge hang. Walking, crouching, crawling, jumping, vaulting and mantling
--- need no stamina and still work.
--- With some stamina left, but less than an action costs, the action still
--- starts: it takes what is left, and that is what exhausts the player.
+-- Can the player start something that needs stamina? Not while exhausted.
+-- With a little stamina left, the action still starts and takes what is left.
 function MovementController:canUseStamina(): boolean
 	return not self.stamina.exhausted
 end
@@ -395,9 +352,8 @@ function MovementController:canDive(): boolean
 	return self:getSpeed() >= Config.Dive.MinSpeed and self:canUseStamina()
 end
 
--- How much of a state's top speed is available in the direction the player
--- is pushing: 1 straight ahead, StrafeSpeedScale flat sideways,
--- BackSpeedScale straight back, blended smoothly in between.
+-- Share of top speed in the pushed direction: 1 ahead, StrafeSpeedScale
+-- sideways, BackSpeedScale back, blended in between.
 function MovementController:directionSpeedScale(): number
 	if self.wishDir == Vector3.zero then
 		return 1
@@ -411,23 +367,18 @@ function MovementController:directionSpeedScale(): number
 	return strafe + (Config.BackSpeedScale - strafe) * -ahead
 end
 
--- Can a slide start right now? Fast enough, not exhausted, and not straight
--- after the previous slide (Slide.Cooldown stops sprint and slide being
--- spammed).
+-- Can a slide start? Fast enough, facing the way you move, not exhausted, cooldown over.
 function MovementController:canSlide(): boolean
 	local slide = Config.Slide
 	local speed = self:getSpeed()
 	return speed >= slide.MinSpeed
-		-- Forward only: no sliding backwards or flat sideways.
+		-- Straight ahead only: no backwards, sideways or diagonal slides.
 		and self.velocity:Dot(self.forward) >= speed * slide.MinForwardDot
 		and os.clock() - self.lastSlideEnd >= slide.Cooldown
 		and self:canUseStamina()
 end
 
--- What the crouch key is asking for right now:
---   "tap"   it was pressed and let go quickly (crouch / slide / stand up)
---   "hold"  it has been kept down long enough (prone / dive)
---   nil     neither
+-- What the crouch key is asking for: "tap", "hold" or nil.
 -- The state that acts on it must call input.consume("Crouch").
 function MovementController:crouchKey(): string?
 	if self.input.tapped("Crouch", Config.CrouchHoldTime, Config.Buffer.Slide) then
@@ -480,21 +431,13 @@ function MovementController:getFloorNormal(): Vector3
 	return Vector3.yAxis
 end
 
--- Ground movement shared by Walk, Sprint and Crouch: steer the velocity
--- toward the wished direction at `targetSpeed`.
---
--- The velocity is split into two parts:
---   along: how fast we are already moving in the direction the player is
---          pushing (negative if we are moving the opposite way);
---   side:  everything else (left-over momentum from before a turn).
--- The side part is braked hard by TurnFriction, so turning does not slide
--- like ice. The along part speeds up with `accel` or slows with `decel`
--- (or `overDecel`, if given, when above the target speed), and if it is
--- negative (the player is pushing against their own momentum: a reversal,
--- or "counter-strafe") it is braked by ReverseDecel first.
---
--- Exhaustion (no stamina left) lowers the target speed here, so it slows
--- exactly the states that use this function, and nothing else.
+-- Ground movement (Walk, Sprint, Crouch): steer toward the pushed direction
+-- at `targetSpeed`.
+--   along: speed in the pushed direction (negative = moving the other way);
+--   side:  leftover momentum from before a turn, braked by TurnFriction.
+-- `along` speeds up with `accel` and slows with `decel` (or `overDecel` above
+-- the target). Pushing against your own momentum brakes with ReverseDecel.
+-- Exhaustion lowers the target speed here.
 function MovementController:accelerate(targetSpeed: number, accel: number, decel: number, dt: number, overDecel: number?)
 	targetSpeed *= self:directionSpeedScale() * self.stamina:speedScale()
 	local wish = self.wishDir
@@ -511,10 +454,8 @@ function MovementController:accelerate(targetSpeed: number, accel: number, decel
 		local rate = if along < 0 then Config.ReverseDecel else accel
 		along = math.min(along + rate * dt, targetSpeed)
 	else
-		-- The gentle `overDecel` is for extra speed carried straight ahead
-		-- (slide-hop, vault). The further the push is from straight ahead,
-		-- the more the ordinary `decel` takes over, so forward sprint speed
-		-- cannot be carried into a strafe or a backpedal.
+		-- The gentle overDecel only applies straight ahead, so forward speed
+		-- cannot be carried into a strafe or backpedal.
 		local ahead = math.max(wish:Dot(self.forward), 0)
 		local rate = if overDecel then decel + (overDecel - decel) * ahead else decel
 		along = math.max(along - rate * dt, targetSpeed)
@@ -523,30 +464,25 @@ function MovementController:accelerate(targetSpeed: number, accel: number, decel
 	self.velocity = wish * along + side
 end
 
--- Air movement: keep speed, allow some steering.
--- Turn a flat direction or velocity by `share` of this frame's camera turn.
--- Used for camera steering in a slide and in the air; the length (speed)
--- is unchanged.
+-- Turn a flat vector by `share` of this frame's camera turn (camera steering). Speed is unchanged.
 function MovementController:cameraSteered(v: Vector3, share: number): Vector3
 	return CFrame.Angles(0, self.cameraYawDelta * share, 0) * v
 end
 
 function MovementController:airSteer(dt: number)
-	-- Camera steering: turning the view bends the flight a little, keys or not.
+	-- Camera steering bends the flight, keys or not.
 	self.velocity = self:cameraSteered(self.velocity, Config.AirCameraSteer)
 	if self.wishDir == Vector3.zero then
 		return
 	end
-	-- Below walk speed, steering may build up to walk speed in that
-	-- direction (slower sideways and backwards, as on the ground; and
-	-- slower when exhausted, or hopping would be a way round exhaustion).
+	-- Key steering can build speed up to walk speed (slower sideways, back
+	-- and when exhausted, so hopping is no way round it).
 	local walkSpeed = Config.WalkSpeed * self:directionSpeedScale() * self.stamina:speedScale()
 	local carrySpeed = math.max(self.velocity.Magnitude, walkSpeed)
 	self.velocity = moveToward(self.velocity, self.wishDir * carrySpeed, Config.AirAccel * dt)
 end
 
--- Hand the body back to the Humanoid after a state that moved it directly.
--- `velocity` is the full 3D velocity to leave with.
+-- Hand the body back to the Humanoid, leaving with this 3D velocity.
 function MovementController:releaseBody(humanoidState: Enum.HumanoidStateType, velocity: Vector3)
 	self.velocity = planar(velocity)
 	self.root.AssemblyLinearVelocity = velocity
@@ -559,20 +495,16 @@ function MovementController:_readInput()
 	local facing = CFrame.Angles(0, yaw, 0)
 	self.forward = facing.LookVector
 
-	-- How far the player turned the view since last frame, for camera
-	-- steering (slide and air). The quick turn's own rotation is taken back
-	-- out: it is a view flip, not a steer. Wrapped to -pi..pi so turning
-	-- past "straight behind" does not count as a full circle.
+	-- How far the view turned since last frame, for camera steering. The
+	-- quick turn is not a steer, so it is taken out.
 	local delta = if self.lastYaw then yaw - self.lastYaw - self.quickTurnApplied else 0
 	self.cameraYawDelta = (delta + math.pi) % (2 * math.pi) - math.pi
 	self.lastYaw = yaw
 	self.quickTurnApplied = 0
 
-	-- The direction Roblox's control script just asked for, in world space.
-	-- It already accounts for the camera and for whichever device is in use.
+	-- Where Roblox's control script asked to go (already camera-relative).
 	local wish = planar(self.humanoid.MoveDirection)
-	-- Scripted tests (Dev/MovementTests) steer the character by setting
-	-- wishOverride; the direction pushed then also counts as "forward".
+	-- Scripted tests steer with wishOverride (which also counts as facing).
 	if self.wishOverride then
 		wish = self.wishOverride
 		if self.forwardOverride then
@@ -600,9 +532,8 @@ function MovementController:_readGround(dt: number)
 		end
 		self.airPeakY = feetY
 		self.airTime = 0
-		-- Roblox keeps reporting the floor for a frame or two after a jump
-		-- starts, while the body is already rising. Ignore those frames, or
-		-- the "floor we jumped from" would be measured too high.
+		-- The floor is still reported for a frame or two after take-off; ignore
+		-- it, or the take-off height would be measured too high.
 		if not self._jumped then
 			self.lastGroundY = feetY
 		end
@@ -613,8 +544,7 @@ function MovementController:_readGround(dt: number)
 		self.airTime += dt
 		self.airPeakY = math.max(self.airPeakY, feetY)
 	end
-	-- A jump is over once we are on a floor again. (The short delay is
-	-- because the floor is still detected for a frame or two after take-off.)
+	-- A jump is over once we are back on a floor (after a short delay, as above).
 	if self._jumped and onFloor and os.clock() - self._jumpedAt > 0.2 then
 		self._jumped = false
 		self._jumpLandedAt = os.clock()
@@ -625,29 +555,20 @@ function MovementController:_readGround(dt: number)
 		end
 	end
 
-	-- A short grace period stops stairs and small bumps counting as
-	-- "airborne". A deliberate jump counts as airborne straight away.
+	-- A short grace period, so stairs and bumps are not "airborne". A jump is airborne at once.
 	self.grounded = self.airTime <= Config.CoyoteTime and not self._jumped
 end
 
--- Buffered jump and coyote jump.
---   Buffered: jump pressed slightly before landing fires on landing.
---   Coyote:   jump pressed slightly after running off an edge still fires.
--- An ordinary jump (pressed while standing on the ground) is done by
--- Roblox's control script and never reaches the code below.
---
--- Jump cooldown: for JumpCooldown seconds after landing from a jump, the
--- Humanoid's Jumping state is switched off. That blocks Roblox's own jump
--- as well as ours. A press during the cooldown stays remembered for the
--- usual buffer time, so a press just before the cooldown ends still jumps.
--- The same switch is used while a state has blocksJump (for example prone,
--- where Space means "get up", not "jump").
+-- Buffered jump: pressed just before landing, fires on landing.
+-- Coyote jump: pressed just after running off an edge, still fires.
+-- (A normal jump from the ground is done by Roblox's control script.)
+-- During the jump cooldown, or in a blocksJump state (prone: Space means
+-- "get up"), the Humanoid's Jumping state is switched off entirely.
 function MovementController:_handleJump()
 	local now = os.clock()
 
-	-- Jump fatigue: a rest on the ground brings back the full height. Then
-	-- set the height the next jump will reach. It has to be set before the
-	-- jump, because an ordinary jump is started by Roblox's control script.
+	-- Jump fatigue: a rest brings back full height. Set the next jump's height
+	-- now, because Roblox's control script starts a normal jump.
 	if self.jumpCount > 0 and not self._jumped and now - self._jumpLandedAt >= Config.JumpRestTime then
 		self.jumpCount = 0
 	end
@@ -656,8 +577,7 @@ function MovementController:_handleJump()
 		self.humanoid.JumpHeight = height
 	end
 
-	-- Weighted fall: on the way down from a jump, add extra gravity.
-	-- (Not while a state such as a wall-run is moving the body itself.)
+	-- Weighted fall: extra gravity on the way down (not while a state moves the body).
 	if self._jumped and not self.state.controlsBody and self.root.AssemblyLinearVelocity.Y < 0 then
 		local extra = Workspace.Gravity * (Config.JumpFallGravityScale - 1)
 		self.root.AssemblyLinearVelocity -= Vector3.new(0, extra * self._frameDt, 0)
@@ -681,12 +601,10 @@ function MovementController:_handleJump()
 		-- On the ground with a remembered press: ask for a normal jump.
 		self.humanoid.Jump = true
 	elseif self.airTime <= Config.CoyoteTime then
-		-- Just left an edge: the Humanoid would refuse a normal jump in
-		-- mid-air, so force the jump state.
+		-- Just off an edge: the Humanoid refuses a mid-air jump, so force it.
 		self.humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
 	end
-	-- The press is consumed when the Humanoid actually enters its Jumping
-	-- state (see StateChanged above). If it never does, the press expires.
+	-- The press is used up when the Humanoid actually jumps (StateChanged above).
 end
 
 -- Quick turn: the camera performs the actual rotation over a few frames.
@@ -699,13 +617,14 @@ function MovementController:_handleQuickTurn()
 	end
 end
 
--- Ground roll: the roll key pressed while moving on the ground. Standing
--- still does not roll.
+-- Ground roll: the roll key while moving forward on the ground.
 function MovementController:_checkGroundRoll(): string?
 	if
 		self.state.allowsGroundRoll
 		and self.grounded
 		and self:getSpeed() > 1
+		-- Not while moving backwards.
+		and self.velocity:Dot(self.forward) > 0
 		and self:canUseStamina()
 		and self.input.isBuffered("Roll", Config.Buffer.Roll)
 	then
@@ -735,17 +654,14 @@ function MovementController:_checkClamber(): string?
 	end
 
 	local obstacle = self:findObstacle()
-	-- An exhausted player cannot hold a ledge (see LedgeHang), so does not
-	-- grab one. Vaults and mantles are unaffected.
+	-- An exhausted player cannot hold a ledge, so does not grab one.
 	if obstacle and obstacle.kind == "LedgeHang" and not self:canUseStamina() then
 		obstacle = nil
 	end
 	if obstacle then
 		self.pendingObstacle = obstacle
-		-- Manual clambering gives a little stamina back (design decision
-		-- 2026-11-10). This point is only reached when the vault or mantle
-		-- is about to start, once per clamber. A ledge grab gives nothing:
-		-- grabbing, dropping and grabbing again could repeat it on the spot.
+		-- Manual clambering gives a little stamina back. Not for a ledge grab,
+		-- which could be repeated on the spot.
 		if manual and obstacle.kind ~= "LedgeHang" then
 			self.stamina:refund(Config.Stamina.ManualClamberRefund)
 		end
@@ -754,8 +670,7 @@ function MovementController:_checkClamber(): string?
 	return nil
 end
 
--- If we ran into something, our intended speed is higher than the real
--- speed. Drop it, so we do not leave the wall at full speed.
+-- Ran into something: lower the intended speed to the real one.
 function MovementController:_reconcileBlocked()
 	local intended = self.velocity.Magnitude
 	if intended < 0.01 then
@@ -770,20 +685,18 @@ function MovementController:_reconcileBlocked()
 	end
 end
 
--- Lower or raise the body toward the height the current state asks for:
--- prone, crouched or standing. "Drop" is how many studs lower than standing.
+-- Move the body toward the height the state wants: prone, crouched or standing.
 function MovementController:_applyBodyHeight(dt: number)
 	local crouch = Config.Crouch
 	local prone = Config.Prone
 	local target = if self.prone then prone.Drop elseif self.crouched then crouch.Drop else 0
 
-	-- Work out the standing hip height from the current one, so this keeps
-	-- working if the avatar's size changes after spawning.
+	-- Worked out from the current hip height, so a resized avatar still works.
 	local humanoid = self.humanoid
 	local standing = humanoid.HipHeight + self._appliedDrop
 	target = math.clamp(target, 0, math.max(standing - crouch.MinHipHeight, 0))
 
-	-- Going into prone, and coming back up out of it, is deliberately slow.
+	-- Prone is deliberately slow to get into and out of.
 	local inProneRange = self.prone or self._appliedDrop > crouch.Drop + 0.01
 	local step = (if inProneRange then prone.TransitionRate else crouch.TransitionRate) * dt
 	local drop = self._appliedDrop
@@ -838,9 +751,7 @@ function MovementController:_update(dt: number)
 		self:setState(nextState)
 	end
 
-	-- Sprinting and ledge hanging drain stamina. Because every spend
-	-- restarts the wait before stamina comes back, nothing comes back
-	-- while they last.
+	-- Sprinting, wall-running and hanging drain stamina (nothing comes back meanwhile).
 	if self.state.staminaDrain then
 		self.stamina:spend(Config.Stamina[self.state.staminaDrain] * self.drainScale * dt)
 	end
