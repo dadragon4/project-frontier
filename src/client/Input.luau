@@ -7,16 +7,12 @@
 -- The walk direction itself is not handled here: it comes from Roblox's own
 -- control script, which already understands keyboard, thumbstick and touch.
 --
--- Input buffering: every press is time-stamped. Movement code can ask "was
--- this pressed within the last X seconds?" instead of "is it pressed on
--- exactly this frame?". A press that comes slightly too early (for example
--- jump just before landing) is then still honoured on the first frame it
--- becomes possible. Once a press has been acted on it is "consumed" so it
--- cannot trigger twice.
+-- Buffering: every press is time-stamped, so code can ask "pressed in the
+-- last X seconds?". An early press (jump just before landing) still counts.
+-- Once acted on, a press is "consumed" so it cannot fire twice.
 --
--- Tap and hold: one key can mean two things. A "tap" is a press that was
--- let go again quickly; a "hold" is a press kept down. A tap is only known
--- once the key comes back up, so tap actions fire on release.
+-- Tap and hold: a tap is a press let go quickly, a hold is kept down. A tap
+-- is only known when the key comes back up, so tap actions fire on release.
 
 local UserInputService = game:GetService("UserInputService")
 
@@ -24,10 +20,8 @@ local BINDINGS: { [string]: { Enum.KeyCode } } = {
 	Sprint = { Enum.KeyCode.LeftShift },
 	-- Tap: crouch / slide / stand up. Hold: prone / dive.
 	Crouch = { Enum.KeyCode.C },
-	-- LeftSuper / LeftMeta is the Command key on a Mac (and the Windows key on
-	-- a PC, where Windows itself takes the key press). Scripts cannot ask
-	-- which operating system the player is on, so all of these are bound
-	-- everywhere: Mac players roll with Command or Ctrl, PC players with Ctrl.
+	-- LeftSuper / LeftMeta is Command on a Mac (the Windows key on a PC, which
+	-- Windows keeps for itself). Scripts cannot tell the system apart, so all are bound.
 	Roll = {
 		Enum.KeyCode.LeftControl,
 		Enum.KeyCode.LeftSuper,

@@ -1,12 +1,6 @@
--- Mantle: pulling up onto a ledge found by MovementController:findObstacle(),
--- or from a LedgeHang.
---
--- For the duration, the Humanoid is put into its "Physics" state, which
--- stops it walking or applying gravity corrections of its own, and this
--- state moves the body directly along a two-part path:
---   1. straight up until the feet are above the ledge,
---   2. forward onto the ledge.
--- Then the Humanoid is handed back and normal movement resumes.
+-- Mantle: pulling up onto a ledge (found by findObstacle, or from a hang).
+-- The Humanoid goes into its "Physics" state and the body is moved
+-- straight up until the feet clear the ledge, then forward onto it.
 
 local Mantle = {
 	flowAction = "Mantle", -- counts toward a FLOW chain

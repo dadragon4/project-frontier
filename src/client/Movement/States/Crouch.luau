@@ -2,7 +2,9 @@
 -- taps crouch again, starts sprinting, or goes prone. It also stays while
 -- there is no room to stand.
 
-local Crouch = {}
+local Crouch = {
+	clearsSprintToggle = true, -- a toggled sprint would stand straight back up
+}
 
 function Crouch.enter(ctx)
 	ctx.crouched = true

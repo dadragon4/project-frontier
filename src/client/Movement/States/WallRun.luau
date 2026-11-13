@@ -1,15 +1,13 @@
--- Wall-run: running along a wall beside you, entered from the air.
+-- Wall-run: running along a wall beside you, started from the air.
 --
--- The Humanoid is put in its "Physics" state and the body's velocity is
--- set every frame: along the wall, with a small upward kick at the start
--- that curves down over the run, and a small push into the wall to stay on
--- it.
---
---   Space    wall jump: push off away from the wall, keeping most of the speed
---   Crouch   drop off the wall
--- The run also ends when the wall ends, the feet reach a floor, speed runs
--- out, or after WallRun.MaxDuration. The same wall cannot be run again
--- until the player lands (MovementController.lastWallNormal).
+-- The Humanoid goes into its "Physics" state and the body is moved each
+-- frame: along the wall, with a small upward kick that curves down, and a
+-- slight push into the wall.
+--   Space    wall jump (can carry you onto the opposite wall: a fresh run)
+--   Crouch   drop off
+-- No time limit: it ends when the feet reach a floor, the wall ends or
+-- speed runs out. A run started in FLOW curves down more slowly.
+-- The same wall cannot be run twice in a row before landing.
 
 local Workspace = game:GetService("Workspace")
 
@@ -40,8 +38,11 @@ function WallRun.enter(ctx)
 		direction = direction,
 		speed = math.clamp(ctx:getSpeed(), config.MinSpeed, config.MaxSpeed),
 		verticalSpeed = config.UpKick,
+		-- Decided at the start: a run started in FLOW lasts longer.
+		gravity = if ctx.flow:inFlow() then config.FlowGravity else config.Gravity,
 		startedAt = os.clock(),
 	}
+	ctx.wallJumped = false
 	ctx.wallNormal = normal
 	ctx.humanoid:ChangeState(Enum.HumanoidStateType.Physics)
 	ctx.humanoid.AutoRotate = false
@@ -64,8 +65,9 @@ function WallRun.update(ctx, dt: number): string?
 
 	if input.pressedSince("Jump", run.startedAt + 0.05) then
 		input.consume("Jump")
-		-- A wall jump is a FLOW action of its own, after the wall-run.
+		-- A wall jump is a FLOW move of its own.
 		ctx:flowInstant("WallJump")
+		ctx.wallJumped = true -- lets the Air state catch the opposite wall
 		local up = math.sqrt(2 * Workspace.Gravity * config.WallJumpHeight)
 		local horizontal = run.normal * config.WallJumpOut + run.direction * run.speed * config.WallJumpKeep
 		run.exitVelocity = horizontal + Vector3.new(0, up, 0)
@@ -85,19 +87,17 @@ function WallRun.update(ctx, dt: number): string?
 		return "Air"
 	end
 
-	-- Reached a floor, or ran out of time or speed? (Not stamina: a run that
-	-- has started always finishes, even if stamina runs out during it.)
+	-- Reached a floor or out of speed? (Not stamina: a started run always finishes.)
 	local floor = Workspace:Raycast(root.Position, Vector3.new(0, -(ctx:getStandingRootHeight() + 0.3), 0), ctx.rayParams)
 	if
 		floor
-		or ctx.stateTime >= config.MaxDuration
 		or run.speed < config.MinSpeed * 0.5
 	then
 		run.exitVelocity = run.direction * run.speed + Vector3.new(0, run.verticalSpeed, 0)
 		return "Air"
 	end
 
-	run.verticalSpeed -= config.Gravity * dt
+	run.verticalSpeed -= run.gravity * dt
 	run.speed = math.max(run.speed - config.Friction * dt, 0)
 
 	root.AssemblyLinearVelocity = run.direction * run.speed

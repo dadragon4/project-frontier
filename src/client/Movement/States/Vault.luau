@@ -1,10 +1,6 @@
--- Vault: going over a low, thin obstacle in one movement, keeping speed.
---
--- Like Mantle, the Humanoid is put in its "Physics" state and the body is
--- moved directly, here along a smooth arc (a quadratic curve) from where
--- the vault starts, over the obstacle, to the landing spot. Then the body
--- is released into the air with the vault's speed and the Air state handles
--- the landing.
+-- Vault: over a low, thin obstacle in one movement, keeping speed.
+-- Like Mantle, the body is moved directly, along a smooth arc to the
+-- landing spot, then released into the air for the Air state to land.
 
 local Vault = {
 	flowAction = "Vault", -- counts toward a FLOW chain

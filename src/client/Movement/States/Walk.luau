@@ -16,8 +16,7 @@ function Walk.update(ctx, dt: number): string?
 		return "Air"
 	end
 
-	-- Crouch key: tap to crouch, hold to go prone (or dive, if still
-	-- carrying enough speed).
+	-- Crouch key: tap = crouch, hold = prone (or dive if still fast).
 	local key = ctx:crouchKey()
 	if key == "tap" then
 		return "Crouch"

@@ -1,26 +1,13 @@
--- First-person presentation: locks the view to first person, keeps the
--- player's own body visible, and adds the camera movements that make motion
--- feel physical:
---   - field of view widens with speed;
---   - head bob while running (up and down, plus a side-to-side sway),
---     scaled by speed;
---   - a dip on landing, deeper for bigger falls;
---   - a slight lean when strafing, a tilt while sliding, and a stronger tilt
---     away from the wall while wall-running;
---   - extra pitch requested by movement states (roll turn-over, mantle and
---     vault dips);
---   - the quick turn.
--- "Reduce camera motion" (Settings) turns off the bob, lean, tilts and
--- pitch effects, and shrinks the landing dip and FOV change.
+-- First-person view: locks the camera to first person, keeps your body
+-- visible, and adds the movements that make motion feel physical: field of
+-- view that widens with speed, head bob and sway, a sprint tilt, a landing
+-- dip, leans and tilts (strafe, slide, wall-run), pitch from moves (roll,
+-- mantle, vault), the quick turn, and a limit on looking down.
+-- "Reduce camera motion" turns most of these off.
 --
--- Roblox's own camera script still does the mouse-look. We run just after
--- it each frame and add our effects on top.
---
--- Important: Roblox's camera script works out each new frame's view from the
--- camera's *current* direction. If our effects were left in place, it would
--- build on them and they would pile up (a roll would leave the view stuck
--- upside down). So just before Roblox's camera script runs, we take our
--- previous frame's effect back off.
+-- Roblox's camera script still does the mouse-look; we add our effects just
+-- after it. It builds each frame from the camera's current direction, so we
+-- take last frame's effects off just before it runs, or they would pile up.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -51,8 +38,7 @@ function FirstPersonCamera.new(controller)
 	self.dipStartedAt = -math.huge
 
 	local player = Players.LocalPlayer
-	-- In locked first person the mouse is always captured, so Roblox's
-	-- shift-lock toggle (also on Left Shift) does not interfere with sprint.
+	-- Locked first person captures the mouse, so Roblox's shift-lock (also Left Shift) cannot clash with sprint.
 	player.CameraMode = Enum.CameraMode.LockFirstPerson
 
 	controller.humanoid.CameraOffset = Config.Camera.Offset
@@ -81,10 +67,8 @@ function FirstPersonCamera:_removeEffect()
 	self.applied = CFrame.identity
 end
 
--- In first person Roblox hides the whole character every frame. Undo that
--- for the body so the player can look down and see it. The head and
--- anything attached to it (hair, hats) stay hidden so they do not block
--- the view.
+-- Roblox hides the whole character in first person. Show the body again so
+-- you can look down and see it; keep the head (and hats, hair) hidden.
 function FirstPersonCamera:_showBody()
 	for _, child in self.character:GetChildren() do
 		if child:IsA("BasePart") and child.Name ~= "Head" then
@@ -113,15 +97,20 @@ function FirstPersonCamera:_update(dt: number)
 
 	self:_showBody()
 
-	-- Quick turn. Unlike the effects below, this rotation is meant to stick,
-	-- so it is applied straight to the camera and not recorded in
-	-- self.applied (Roblox's camera script then carries on from the new
-	-- direction).
+	-- Quick turn: applied straight to the camera, because it is meant to stick.
 	if controller.quickTurnRemaining > 0 then
 		local step = math.min(controller.quickTurnRemaining, math.pi / Config.QuickTurn.Duration * dt)
 		controller.quickTurnRemaining -= step
+		controller.quickTurnApplied += step -- so it is not mistaken for camera steering
 		local cf = camera.CFrame
 		camera.CFrame = CFrame.new(cf.Position) * CFrame.Angles(0, step, 0) * cf.Rotation
+	end
+
+	-- Look-down limit, so the view never goes inside the body. Also meant to stick.
+	local lookDown = -math.asin(math.clamp(camera.CFrame.LookVector.Y, -1, 1))
+	local excess = lookDown - math.rad(cameraConfig.MaxLookDown)
+	if excess > 0 then
+		camera.CFrame *= CFrame.Angles(excess, 0, 0)
 	end
 
 	-- Field of view widens with speed.
@@ -157,23 +146,33 @@ function FirstPersonCamera:_update(dt: number)
 	end
 	self.tilt += (targetTilt * motion - self.tilt) * blend(cameraConfig.RollRate, dt)
 
-	-- Head bob, driven by distance travelled so it matches footsteps.
-	-- The up-and-down bob repeats every step; the sideways sway is half as
-	-- fast, so the head moves over to the left foot, then the right.
+	-- Head bob follows distance travelled, so it matches the steps: up and down
+	-- every step, side to side every two.
 	local targetBob = 0
 	if BOB_STATES[state] and controller.grounded and speed > 1 then
 		self.bobPhase += speed * dt * feel.BobFrequency
 		targetBob = math.clamp(speed / Config.SprintSpeed, 0, 1)
 	end
 	self.bobWeight += (targetBob * motion - self.bobWeight) * blend(10, dt)
-	-- Strafing rocks the head sideways more and bounces it less.
-	-- "sideness" is 0 moving straight ahead or back, 1 moving flat sideways.
+	-- Strafing sways more and bounces less. sideness: 0 forward or back, 1 flat sideways.
 	local sideness = 0
 	if speed > 1 and flatRight.Magnitude > 0.01 then
 		sideness = math.abs((controller.velocity / speed):Dot(flatRight.Unit))
 	end
 	local bobY = math.sin(self.bobPhase * 2) * self.bobWeight * feel.BobAmount * (1 - feel.StrafeBobTrade * sideness)
-	local bobX = math.sin(self.bobPhase) * self.bobWeight * (feel.SideBobAmount + feel.StrafeBobAdd * sideness)
+	-- Walking has its own sway, reached in full at walk speed.
+	local sideAmount = feel.SideBobAmount
+	if state == "Walk" then
+		sideAmount = feel.WalkSideBobAmount * Config.SprintSpeed / Config.WalkSpeed
+	end
+	local bobX = math.sin(self.bobPhase) * self.bobWeight * (sideAmount + feel.StrafeBobAdd * sideness)
+
+	-- Sprint tilt: the view rocks left and right with the steps when sprinting forward.
+	local sway = 0
+	if state == "Sprint" and speed > 1 then
+		local forwardness = math.max(controller.velocity:Dot(controller.forward) / speed, 0)
+		sway = math.sin(self.bobPhase) * self.bobWeight * math.rad(feel.SprintSwayTilt) * forwardness
+	end
 
 	-- Landing dip (not after a roll, which has its own camera movement).
 	if controller.landedAt ~= self.lastLandingSeen then
@@ -191,7 +190,7 @@ function FirstPersonCamera:_update(dt: number)
 	-- Combine this frame's effects.
 	local effect = CFrame.new(bobX, bobY - dip, 0)
 		* CFrame.Angles(controller.cameraPitch * motion, 0, 0)
-		* CFrame.Angles(0, 0, self.tilt)
+		* CFrame.Angles(0, 0, self.tilt + sway)
 	camera.CFrame *= effect
 	self.applied = effect
 end
