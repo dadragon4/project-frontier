@@ -10,6 +10,7 @@ local Dive = {
 	staminaCost = "Dive", -- paid once, when the dive starts
 	flowAction = "Dive", -- counts toward a FLOW chain
 	blocksJump = true,
+	clearsSprintToggle = true, -- a dive ends prone, not sprinting
 }
 
 function Dive.enter(ctx)

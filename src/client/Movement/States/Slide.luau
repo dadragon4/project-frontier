@@ -17,6 +17,7 @@ local Slide = {
 	staminaCost = "Slide", -- paid once, when the slide starts
 	flowAction = "Slide", -- counts toward a FLOW chain
 	allowsClamber = true, -- vault / mantle can start from here
+	clearsSprintToggle = true, -- you come out of a slide crouched, not sprinting
 }
 
 function Slide.enter(ctx)

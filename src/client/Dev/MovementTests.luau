@@ -202,6 +202,72 @@ local function run(input, c): string
 			check("sprint key stands up from a crouch", sawState("Sprint", 0.5), now())
 		end,
 
+		function() -- Toggle sprint mode: the key switches sprinting on and off
+			Settings.set("SprintMode", "Toggle")
+			place(0, 120)
+			move(NORTH)
+			tap("Sprint") -- a tap, not a hold: the key is already let go
+			local started = sawState("Sprint", 1)
+			task.wait(1)
+			check(
+				"a tap of the sprint key sprints on without holding it",
+				started and c.stateName == "Sprint" and near(c:getActualSpeed(), Config.SprintSpeed, 1),
+				now()
+			)
+
+			tap("Sprint")
+			check("a second tap ends the sprint", sawState("Walk", 1), now())
+		end,
+
+		function() -- Toggle sprint mode: stopping clears the switch
+			Settings.set("SprintMode", "Toggle")
+			place(0, 120)
+			move(NORTH)
+			tap("Sprint")
+			sawState("Sprint", 1)
+			move(Vector3.zero) -- let go of the direction
+			task.wait(0.5)
+			move(NORTH) -- and set off again
+			task.wait(0.8)
+			check(
+				"stopping clears the sprint switch",
+				not c.sprintOn and c.stateName == "Walk",
+				string.format("%s, switch %s", now(), tostring(c.sprintOn))
+			)
+		end,
+
+		function() -- Toggle sprint mode: crouching clears the switch
+			Settings.set("SprintMode", "Toggle")
+			place(0, 120)
+			move(NORTH)
+			tap("Sprint")
+			sawState("Sprint", 1)
+			task.wait(1.2) -- let the sprint build up, or it is too slow to slide
+			tap("Crouch") -- slides, and must end crouched rather than sprinting again
+			local slid = sawState("Slide", 0.5)
+			check(
+				"a slide clears the sprint switch, so it ends crouched",
+				slid and sawState("Crouch", 3) and not c.sprintOn,
+				string.format("%s, switch %s", now(), tostring(c.sprintOn))
+			)
+		end,
+
+		function() -- Toggle sprint mode: running out of stamina clears the switch
+			Settings.set("SprintMode", "Toggle")
+			tune(Config.Stamina, "RegenRate", 0) -- stay exhausted, so the check is not a race
+			place(0, 120)
+			move(NORTH)
+			tap("Sprint")
+			sawState("Sprint", 1)
+			c.stamina:set(0)
+			task.wait(0.5)
+			check(
+				"running out of stamina clears the sprint switch",
+				not c.sprintOn and c.stateName ~= "Sprint",
+				string.format("%s, switch %s", now(), tostring(c.sprintOn))
+			)
+		end,
+
 		function() -- a slide down the 15 degree ramp keeps going until the ramp ends
 			-- The ramp's high end is at z = 11; at z = 20 its surface is about 13.1 up.
 			place(45, 20, 13.3)
@@ -580,6 +646,18 @@ local function run(input, c): string
 			end, 2)
 			local z = c.root.Position.Z - ORIGIN.Z
 			check("vault", vaulted and z < 108.5, string.format("%s, z %.1f", now(), z))
+		end,
+
+		function() -- vault over the 3 stud box, the tallest that still vaults
+			place(95, 75)
+			move(NORTH)
+			hold("Sprint")
+			local vaulted = sawState("Vault", 3)
+			waitFor(function()
+				return c.stateName ~= "Vault" and c.airTime == 0
+			end, 2)
+			local z = c.root.Position.Z - ORIGIN.Z
+			check("vault over the 3 stud box", vaulted and z < 63.5, string.format("%s, z %.1f", now(), z))
 		end,
 
 		function() -- mantle onto the 4 stud box
@@ -1252,6 +1330,11 @@ local function run(input, c): string
 
 	local clamberMode = Settings.get("ClamberMode")
 	Settings.set("ClamberMode", "Auto")
+	-- Every check below holds the sprint key down and lets it go to stop, so
+	-- the suite runs in Hold mode. The toggled sprint (the player's default)
+	-- has its own checks, which switch the setting themselves.
+	local sprintMode = Settings.get("SprintMode")
+	Settings.set("SprintMode", "Hold")
 	for index, test in tests do
 		local ok, err = pcall(test)
 		if not ok then
@@ -1260,12 +1343,14 @@ local function run(input, c): string
 		-- Undo anything the test changed for itself, even if it stopped early.
 		untune()
 		Settings.set("ClamberMode", "Auto")
+		Settings.set("SprintMode", "Hold")
 	end
 	jumpWatch:Disconnect()
 	place(0, 140)
 	c.wishOverride = nil
 	c.forwardOverride = nil
 	Settings.set("ClamberMode", clamberMode)
+	Settings.set("SprintMode", sprintMode)
 
 	return `{passed}/{total} passed\n{table.concat(lines, "\n")}`
 end

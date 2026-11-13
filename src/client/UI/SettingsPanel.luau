@@ -59,7 +59,7 @@ function SettingsPanel.start(input)
 	local frame = Instance.new("Frame")
 	frame.AnchorPoint = Vector2.new(0.5, 0.5)
 	frame.Position = UDim2.fromScale(0.5, 0.5)
-	frame.Size = UDim2.fromOffset(360, 190)
+	frame.Size = UDim2.fromOffset(360, 234)
 	frame.BackgroundColor3 = PANEL
 	frame.BackgroundTransparency = 0.08
 	frame.BorderSizePixel = 0
@@ -82,6 +82,9 @@ function SettingsPanel.start(input)
 	makeLabel(frame, "Clambering", UDim2.fromOffset(16, 96), UDim2.fromOffset(160, 32), Enum.TextXAlignment.Left)
 	local clamberButton = makeButton(frame, UDim2.fromOffset(200, 96), UDim2.fromOffset(144, 32))
 
+	makeLabel(frame, "Sprint", UDim2.fromOffset(16, 140), UDim2.fromOffset(160, 32), Enum.TextXAlignment.Left)
+	local sprintButton = makeButton(frame, UDim2.fromOffset(200, 140), UDim2.fromOffset(144, 32))
+
 	local closeButton = makeButton(frame, UDim2.new(0.5, -60, 1, -46), UDim2.fromOffset(120, 32))
 	closeButton.Text = "Close"
 	-- Releases the mouse while the panel is showing.
@@ -90,6 +93,7 @@ function SettingsPanel.start(input)
 	local function refresh()
 		motionButton.Text = if Settings.get("ReduceCameraMotion") then "Reduced" else "Full"
 		clamberButton.Text = if Settings.get("ClamberMode") == "Manual" then "Manual (Space)" else "Automatic"
+		sprintButton.Text = if Settings.get("SprintMode") == "Hold" then "Hold" else "Toggle"
 	end
 
 	motionButton.Activated:Connect(function()
@@ -97,6 +101,9 @@ function SettingsPanel.start(input)
 	end)
 	clamberButton.Activated:Connect(function()
 		Settings.set("ClamberMode", if Settings.get("ClamberMode") == "Manual" then "Auto" else "Manual")
+	end)
+	sprintButton.Activated:Connect(function()
+		Settings.set("SprintMode", if Settings.get("SprintMode") == "Hold" then "Toggle" else "Hold")
 	end)
 	closeButton.Activated:Connect(function()
 		gui.Enabled = false

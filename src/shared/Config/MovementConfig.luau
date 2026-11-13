@@ -267,7 +267,11 @@ return {
 		-- obstacles are treated as steps (user ruling 2026-11-11). 1.9 rather than 2.0 so
 		-- an obstacle exactly 2 studs tall still counts as a vault.
 		MinHeight = 1.9,
-		MaxHeight = 3.0,
+		-- 3.2 rather than 3.0 for the same reason as MinHeight: the height is measured
+		-- from the live feet position, which is a hair above or below the floor, so an
+		-- obstacle exactly 3 studs tall would otherwise land either side of the limit
+		-- and sometimes mantle instead (user ruling 2026-11-12).
+		MaxHeight = 3.2,
 		MaxDepth = 4, -- obstacles deeper than this are mantled onto instead
 		LandingGap = 1.5, -- how far past the far edge you land
 		RootClearance = 2.0, -- body centre passes this far above the top (legs tucked)

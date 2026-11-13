@@ -11,6 +11,7 @@
 
 local Prone = {
 	blocksJump = true, -- Space means "get up" here, not "jump"
+	clearsSprintToggle = true, -- a toggled sprint would stand straight back up
 }
 
 function Prone.enter(ctx)

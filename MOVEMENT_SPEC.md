@@ -13,7 +13,7 @@ Movement is pillar #1. Status labels are defined in `AGENTS.md`; register entrie
 
 ## Keys
 
-`W A S D` move · `Left Shift` sprint (hold, any direction) · `C` tap: crouch / slide / stand up · `C` hold: prone / dive · `Left Ctrl` (or `Left Command` on a Mac) roll · `Space` jump / manual clamber / pull up / wall jump · `R` quick turn · `P` settings.
+`W A S D` move · `Left Shift` sprint (toggle by default, hold optional; any direction) · `C` tap: crouch / slide / stand up · `C` hold: prone / dive · `Left Ctrl` (or `Left Command` on a Mac) roll · `Space` jump / manual clamber / pull up / wall jump · `R` quick turn · `P` settings.
 
 ## Abilities
 
@@ -24,6 +24,16 @@ Everything in this section is built unless it says otherwise. "As built" lines a
 - Responsive acceleration; smooth and controllable. Momentum carries into other movement actions.
 - Works in any direction. Moving sideways or backwards is slower than straight ahead, in every ground state (`StrafeSpeedScale`, `BackSpeedScale`, blended in between).
 - Added weight lowers top speed (see "Weight"; not built).
+
+**Toggle or hold [Established]:** players choose in settings (`P`). The default is **toggle** (user decision 2026-11-12): the sprint key switches sprinting on, and off again, so it does not have to be held. **Hold** is the alternative: sprinting lasts only while the key is down.
+
+A toggled sprint also switches itself off whenever leaving it on would surprise the player (user decisions 2026-11-12):
+
+- when the player stops pushing a direction, so setting off again walks;
+- when they crouch, slide, dive or go prone — otherwise a tap of crouch would stand straight back up into a sprint, and crouching would be impossible. You come out of a slide crouched, as in hold mode;
+- when they run out of stamina, so recovering does not resume a sprint on its own.
+
+A roll does not clear it (**agent's reading, to confirm**): a roll out of a sprint continues sprinting, as it does in hold mode. Pressing sprint during a slide still cuts the slide back into a sprint in both modes.
 
 ### Strafing [Established: precise, responsive, competitive, still momentum-based]
 
@@ -111,6 +121,8 @@ As built: the roll keeps your speed (within limits), lasts about half a second, 
 
 Traverses obstacles. As built: low, thin obstacles with floor behind them are vaulted in one arc, keeping nearly all your speed. Deeper low obstacles are mantled onto instead.
 
+**Tallest obstacle [Established]:** up to 3 studs is vaulted; anything taller is mantled onto. (`Vault.MaxHeight` is 3.2 rather than 3.0, the same slack as `MinHeight`, so an obstacle exactly 3 studs tall still vaults instead of landing either side of the limit — user ruling 2026-11-12.)
+
 ### Mantle [Established]
 
 Climb ledges, pipes and other structures, to escape, pursue and reach hidden areas. The user asked for mantling onto "a block that is at least 5 blocks high"; **agent's reading, to confirm:** blocks of 5 studs and more must work. As built: up to 6.5 studs, from the ground or from a jump. Climbing will be affected by weight (not built).
@@ -132,6 +144,8 @@ As built: a press just before landing is remembered (buffered jump); a press jus
 Movement should feel physical, with a setting to reduce camera motion.
 
 As built: head bob scaled with speed (up-down and side-to-side; strafing rocks sideways more and bounces less); a landing dip that grows with fall height; a slight lean when strafing; a tilt away from the wall while wall-running; small downward looks during mantles and vaults; the camera turning over in a roll. **Reduce camera motion** removes all of these except a smaller landing dip and a smaller speed field-of-view change. Settings are not saved between sessions yet (Phase 5).
+
+The settings panel (`P`) holds three options so far: camera motion, clamber mode (automatic / manual) and sprint mode (toggle / hold).
 
 ## Stamina and FLOW [Established] — built 2026-11-11
 
@@ -226,11 +240,12 @@ Weight is not built: stamina currently ignores it. For the prototype, weight and
 
 ## Implementation status
 
-Checked automatically by `python3 tools/studio.py test` (100 checks, all passing on 2026-11-12; `src/client/Dev/MovementTests.luau`):
+Checked automatically by `python3 tools/studio.py test` (106 checks, all passing on 2026-11-12; `src/client/Dev/MovementTests.luau`). Every check other than the sprint-mode ones below runs in **hold** mode, because the script holds the key down and lets go to stop:
 
 | Area | What the script checks |
 | :-- | :-- |
 | Walk, sprint | Reaches walk and sprint speed in the right state |
+| Sprint mode | Toggle: a tap sprints with the key let go, a second tap ends it; the switch is cleared by stopping, by a slide (which ends crouched) and by running out of stamina |
 | Direction speed | Walking backwards is capped; sprint works backwards and sideways, slower; a diagonal is no faster than straight ahead |
 | Strafing | Sprint pressed while strafing is at full strafe speed at once, and the body follows; pressed while walking forward it still builds up; a counter-strafe reverses quickly with no speed spike; forward sprint speed is not carried into a backpedal; no speed gained in the air while backpedalling; a sideways cut out of a sprint keeps most of its speed |
 | Slide | A crouch tap while sprinting slides with a boost and ends in a crouch; down the 15° ramp it keeps its speed and ends on the flat; the roll key does nothing during it; pressing sprint again cuts it into a sprint; no new slide (and no stamina charge) during the cooldown, and one starts again after it; down the ramp it holds the slope cap (28, or 30 when started in FLOW); a flat slide stops within 25 studs |
@@ -239,7 +254,7 @@ Checked automatically by `python3 tools/studio.py test` (100 checks, all passing
 | Dive | Leaves the ground and lands prone |
 | Jump | Height matches the config; buffered jump (checked with the cooldown off); coyote jump (on a slow frame rate the script widens the window, so the tuned window itself is unverified); jump cooldown |
 | Roll | Air roll after an 8 stud fall; ground roll while walking; no roll while standing still |
-| Vault | Automatic vault over the 2 stud box while sprinting |
+| Vault | Automatic vault over the 2 stud box while sprinting, and over the 3 stud box (the tallest that still vaults) |
 | Mantle | Automatic mantle onto the 4 stud box |
 | Ledge grab | Grab on the 8 stud wall from a jump; Space pulls up onto the top; hanging drains stamina at the set rate; running out lets go; an exhausted player cannot grab |
 | Wall-run | Starts from a jump beside the wall; Space wall-jumps away from it; drains stamina at the set rate less the momentum discount; a run under way finishes even with no stamina; an exhausted player cannot start one |

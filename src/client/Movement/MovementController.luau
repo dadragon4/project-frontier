@@ -27,6 +27,8 @@
 --                                     key of Config.Stamina)
 --     flowAction = "Slide"            optional: the state counts toward a
 --                                     FLOW chain under this name
+--     clearsSprintToggle = true       optional: entering the state switches
+--                                     a toggled sprint off (see wantsSprint)
 -- where ctx is this controller.
 --
 -- Stamina and FLOW: the rules live in Shared/Stamina and Shared/FlowChain.
@@ -103,6 +105,7 @@ function MovementController.new(character: Model, input)
 	self.grounded = true
 	self.airTime = 0
 	self.crouched = false -- states set this; the body lowers to match
+	self.sprintOn = false -- Toggle sprint mode: is the sprint switch on? (see wantsSprint)
 	self.prone = false -- true in Prone and Dive (set by setState); the body lowers further
 	self.lastSlideEnd = -math.huge
 	self.lastSlideHop = -math.huge
@@ -148,6 +151,15 @@ function MovementController.new(character: Model, input)
 			self._jumped = true
 			self._jumpedAt = os.clock()
 			self.input.consume("Jump")
+		end
+	end)
+
+	-- Toggle sprint mode: flip the switch on the press itself, rather than
+	-- polling the key. A press that another state consumes (a slide cut
+	-- short by pressing sprint again) is still seen here.
+	self._sprintPressed = input.Pressed:Connect(function(action: string)
+		if action == "Sprint" and self.settings.get("SprintMode") == "Toggle" then
+			self.sprintOn = not self.sprintOn
 		end
 	end)
 
@@ -214,6 +226,7 @@ function MovementController:destroy()
 	end
 	self._destroyed = true
 	self._stateChanged:Disconnect()
+	self._sprintPressed:Disconnect()
 	self._gravityCancel.Enabled = false
 	RunService:UnbindFromRenderStep(PRE_STEP_NAME)
 	RunService:UnbindFromRenderStep(RENDER_STEP_NAME)
@@ -240,6 +253,11 @@ function MovementController:setState(name: string)
 	local previousState = self.state
 	local newState = States[name]
 	local now = os.clock()
+
+	-- Crouching, sliding or going prone switches a toggled sprint off.
+	if newState.clearsSprintToggle then
+		self.sprintOn = false
+	end
 
 	-- Charge the new state's stamina cost first: the old state's exit and
 	-- the new state's enter both change the velocity (a slide adds its
@@ -317,8 +335,33 @@ end
 -- Is the player asking to sprint? Sprint works in any direction; sideways
 -- and backwards are just slower (see directionSpeedScale).
 -- Not while exhausted: see canUseStamina.
+--
+-- Two ways of asking, the player's choice (Settings.SprintMode):
+--   "Toggle" (the default): the key switches sprinting on and off, so it
+--            does not have to be held. `sprintOn` is that switch.
+--   "Hold":   sprinting lasts only while the key is held.
 function MovementController:wantsSprint(): boolean
-	return self.input.isDown("Sprint") and self.wishDir ~= Vector3.zero and self:canUseStamina()
+	local asking = if self.settings.get("SprintMode") == "Toggle"
+		then self.sprintOn
+		else self.input.isDown("Sprint")
+	return asking and self.wishDir ~= Vector3.zero and self:canUseStamina()
+end
+
+-- The sprint switch clears itself in the cases where leaving it on would
+-- surprise the player (user decisions 2026-11-12): when they stop pushing a
+-- direction, and when they run out of stamina. Entering a crouched state
+-- clears it too, in setState, or a tap of crouch would stand straight back
+-- up into a sprint. Called every frame, after the input is read.
+function MovementController:_updateSprintToggle()
+	if self.settings.get("SprintMode") ~= "Toggle" then
+		-- Not in Toggle mode: keep the switch off, so that changing the
+		-- setting mid-game never resumes a sprint on its own.
+		self.sprintOn = false
+		return
+	end
+	if self.sprintOn and (self.wishDir == Vector3.zero or not self:canUseStamina()) then
+		self.sprintOn = false
+	end
 end
 
 -- Sprint top speed: higher while in FLOW.
@@ -719,6 +762,7 @@ function MovementController:_update(dt: number)
 	end
 
 	self:_readInput()
+	self:_updateSprintToggle()
 	self:_readGround(dt)
 	self:_handleJump()
 	if not self.state.controlsBody then

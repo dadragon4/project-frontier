@@ -18,6 +18,14 @@ local values = {
 	--           exists).
 	-- Keyboard default is Auto (user decision 2026-11-10).
 	ClamberMode = "Auto",
+
+	-- "Toggle": the sprint key switches sprinting on, and off again. The
+	--           switch also clears itself when the player stops pushing a
+	--           direction, crouches, slides, goes prone, or runs out of
+	--           stamina, so it never leaves you sprinting unexpectedly.
+	-- "Hold":   sprinting lasts only while the key is held.
+	-- Default is Toggle (user decision 2026-11-12).
+	SprintMode = "Toggle",
 }
 
 local changed = Instance.new("BindableEvent")
